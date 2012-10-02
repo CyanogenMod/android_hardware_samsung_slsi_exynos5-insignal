@@ -86,6 +86,22 @@ inline int HEIGHT(const hwc_rect &rect) { return rect.bottom - rect.top; }
 template<typename T> inline T max(T a, T b) { return (a > b) ? a : b; }
 template<typename T> inline T min(T a, T b) { return (a < b) ? a : b; }
 
+static int dup_or_warn(int fence)
+{
+    int dup_fd = dup(fence);
+    if (dup_fd < 0)
+        ALOGW("fence dup failed: %s", strerror(errno));
+    return dup_fd;
+}
+
+static int merge_or_warn(const char *name, int f1, int f2)
+{
+    int merge_fd = sync_merge(name, f1, f2);
+    if (merge_fd < 0)
+        ALOGW("fence merge failed: %s", strerror(errno));
+    return merge_fd;
+}
+
 template<typename T> void align_crop_and_center(T &w, T &h,
         hwc_rect_t *crop, size_t alignment)
 {
@@ -3332,9 +3348,7 @@ static int exynos5_set_fimd(exynos5_hwc_composer_device_1_t *pdev,
         if (pdev->bufs.overlay_map[i] != -1) {
             hwc_layer_1_t &layer =
                     contents->hwLayers[pdev->bufs.overlay_map[i]];
-            int dup_fd = dup(fence);
-            if (dup_fd < 0)
-                ALOGW("release fence dup failed: %s", strerror(errno));
+            int dup_fd = dup_or_warn(fence);
             if (pdev->bufs.gsc_map[i].mode == exynos5_gsc_map_t::GSC_M2M) {
                 int gsc_idx = pdev->bufs.gsc_map[i].idx;
                 exynos5_gsc_data_t &gsc = pdev->gsc[gsc_idx];
@@ -3351,7 +3365,7 @@ static int exynos5_set_fimd(exynos5_hwc_composer_device_1_t *pdev,
             }
         }
     }
-    close(fence);
+    contents->retireFenceFd = fence;
 
     return err;
 }
@@ -3465,6 +3479,14 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 
                 gsc.dst_buf_fence[gsc.current_buf] = releaseFenceFd;
                 gsc.current_buf = (gsc.current_buf + 1) % NUM_GSC_DST_BUFS;
+                if (contents->retireFenceFd < 0)
+                    contents->retireFenceFd = dup_or_warn(releaseFenceFd);
+                else {
+                    int merged = merge_or_warn("hdmi",
+                                               contents->retireFenceFd, layer.releaseFenceFd);
+                    close(contents->retireFenceFd);
+                    contents->retireFenceFd = merged;
+                }
             }
 
         }
@@ -3482,6 +3504,14 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                         &layer.releaseFenceFd);
 
             fb_layer = &layer;
+            if (contents->retireFenceFd < 0)
+                contents->retireFenceFd = dup_or_warn(layer.releaseFenceFd);
+            else {
+                int merged = merge_or_warn("hdmi",
+                                           contents->retireFenceFd, layer.releaseFenceFd);
+                close(contents->retireFenceFd);
+                contents->retireFenceFd = merged;
+            }
 
             if (pdev->is_fb_layer == false)
                 pdev->fb_started = true;

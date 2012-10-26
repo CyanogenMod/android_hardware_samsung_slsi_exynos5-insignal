@@ -23,7 +23,6 @@ exynos5_dirs := \
 	libgscaler \
 	librotator \
 	libswconverter \
-	libv4l2 \
 	libhwjpeg \
 	libhwc \
 	libcamera2 \

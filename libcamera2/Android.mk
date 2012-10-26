@@ -7,7 +7,8 @@ include $(CLEAR_VARS)
 LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR_SHARED_LIBRARIES)/hw
 
 LOCAL_C_INCLUDES += \
-	hardware/samsung_slsi/exynos5/include \
+	$(LOCAL_PATH)/../include \
+	$(TOP)/hardware/samsung_slsi/exynos/include \
 	frameworks/native/include \
 	system/media/camera/include
 

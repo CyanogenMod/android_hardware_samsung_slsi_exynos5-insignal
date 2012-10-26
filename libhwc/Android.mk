@@ -27,7 +27,8 @@ LOCAL_CFLAGS += -DLOG_TAG=\"hwcomposer\"
 
 LOCAL_C_INCLUDES := \
     $(LOCAL_PATH)/../include \
-    $(LOCAL_PATH)/../libexynosutils
+    $(TOP)/hardware/samsung_slsi/exynos/include \
+    $(TOP)/hardware/samsung_slsi/exynos/libexynosutils
 
 LOCAL_SRC_FILES := hwc.cpp
 

@@ -18,6 +18,7 @@
 ifeq ($(TARGET_BOARD_PLATFORM),exynos5)
 
 exynos5_dirs := \
+	libcodec \
 	libion_exynos \
 	libgscaler \
 	librotator \

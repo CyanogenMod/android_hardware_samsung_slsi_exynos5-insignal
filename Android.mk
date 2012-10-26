@@ -19,7 +19,6 @@ ifeq ($(TARGET_BOARD_PLATFORM),exynos5)
 
 exynos5_dirs := \
 	libion_exynos \
-	exynos_omx \
 	libgscaler \
 	librotator \
 	libswconverter \

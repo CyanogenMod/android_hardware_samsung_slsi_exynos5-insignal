@@ -22,7 +22,6 @@ exynos5_dirs := \
 	exynos_omx \
 	libgscaler \
 	librotator \
-	libstagefrighthw \
 	libswconverter \
 	libv4l2 \
 	libhwjpeg \

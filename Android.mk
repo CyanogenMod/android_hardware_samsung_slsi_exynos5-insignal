@@ -21,7 +21,6 @@ exynos5_dirs := \
 	libion_exynos \
 	libexynosutils \
 	exynos_omx \
-	libcsc \
 	libgscaler \
 	librotator \
 	libstagefrighthw \

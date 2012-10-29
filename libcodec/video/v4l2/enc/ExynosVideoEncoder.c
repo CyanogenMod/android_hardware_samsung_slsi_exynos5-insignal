@@ -1819,7 +1819,9 @@ static ExynosVideoErrorType MFC_Encoder_Enqueue_Inbuf(
             /* V4L2_MEMORY_USERPTR */
             buf.m.planes[i].m.userptr = (unsigned long)pBuffer[i];
             /* V4L2_MEMORY_DMABUF */
+#ifdef USE_DMA_BUF
             buf.m.planes[i].m.fd = pCtx->pInbuf[buf.index].planes[i].fd;
+#endif
             buf.m.planes[i].length = pCtx->pInbuf[index].planes[i].allocSize;
             buf.m.planes[i].bytesused = dataSize[i];
         }
@@ -1897,7 +1899,9 @@ static ExynosVideoErrorType MFC_Encoder_Enqueue_Outbuf(
             /* V4L2_MEMORY_USERPTR */
             buf.m.planes[i].m.userptr = (unsigned long)pBuffer[i];
             /* V4L2_MEMORY_DMABUF */
+#ifdef USE_DMA_BUF
             buf.m.planes[i].m.fd = pCtx->pOutbuf[index].planes[i].fd;
+#endif
             buf.m.planes[i].length = pCtx->pOutbuf[index].planes[i].allocSize;
             buf.m.planes[i].bytesused = dataSize[i];
         }

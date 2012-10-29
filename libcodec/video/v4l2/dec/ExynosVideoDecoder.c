@@ -1449,13 +1449,14 @@ static ExynosVideoErrorType MFC_Decoder_Enqueue_Inbuf(
             /* V4L2_MEMORY_USERPTR */
             buf.m.planes[i].m.userptr = (unsigned long)pBuffer[i];
             /* V4L2_MEMORY_DMABUF */
+#ifdef USE_DMA_BUF
             buf.m.planes[i].m.fd = pCtx->pInbuf[index].planes[i].fd;
+#endif
             buf.m.planes[i].length = pCtx->pInbuf[index].planes[i].allocSize;
             buf.m.planes[i].bytesused = dataSize[i];
-            ALOGV("%s: shared inbuf(%d) plane(%d) addr=%p fd=%d len=%d used=%d\n", __func__,
+            ALOGV("%s: shared inbuf(%d) plane(%d) addr=%p len=%d used=%d\n", __func__,
                   index, i,
                   buf.m.planes[i].m.userptr,
-                  buf.m.planes[i].m.fd,
                   buf.m.planes[i].length,
                   buf.m.planes[i].bytesused);
         }
@@ -1533,13 +1534,14 @@ static ExynosVideoErrorType MFC_Decoder_Enqueue_Outbuf(
             /* V4L2_MEMORY_USERPTR */
             buf.m.planes[i].m.userptr = (unsigned long)pBuffer[i];
             /* V4L2_MEMORY_DMABUF */
+#ifdef USE_DMA_BUF
             buf.m.planes[i].m.fd = pCtx->pOutbuf[index].planes[i].fd;
+#endif
             buf.m.planes[i].length = pCtx->pOutbuf[index].planes[i].allocSize;
             buf.m.planes[i].bytesused = dataSize[i];
-            ALOGV("%s: shared outbuf(%d) plane=%d addr=%p fd=%d len=%d used=%d\n", __func__,
+            ALOGV("%s: shared outbuf(%d) plane=%d addr=0x%lx len=%d used=%d\n", __func__,
                   index, i,
                   buf.m.planes[i].m.userptr,
-                  buf.m.planes[i].m.fd,
                   buf.m.planes[i].length,
                   buf.m.planes[i].bytesused);
         }

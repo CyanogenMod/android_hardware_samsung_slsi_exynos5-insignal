@@ -47,10 +47,10 @@
 #define LOG_TAG "ExynosVideoEncoder"
 #include <utils/Log.h>
 
-#define MAX_CTRL_NUM    91
-#define H264_CTRL_NUM   91
-#define MPEG4_CTRL_NUM  26
-#define H263_CTRL_NUM   18
+#define MAX_CTRL_NUM          91
+#define H264_CTRL_NUM         91
+#define MPEG4_CTRL_NUM        26
+#define H263_CTRL_NUM         18
 #define MAX_INPUTBUFFER_COUNT 32
 
 /*
@@ -1587,7 +1587,7 @@ EXIT:
 }
 
 static ExynosVideoErrorType MFC_Encoder_Register_Inbuf(
-    void            *pHandle,
+    void             *pHandle,
     ExynosVideoPlane *planes,
     int               nPlanes)
 {
@@ -1624,7 +1624,7 @@ EXIT:
 }
 
 static ExynosVideoErrorType MFC_Encoder_Register_Outbuf(
-    void           *pHandle,
+    void             *pHandle,
     ExynosVideoPlane *planes,
     int               nPlanes)
 {
@@ -1733,7 +1733,7 @@ EXIT:
 }
 
 /*
- * [Encoder Buffer OPS] Find (Outnput)
+ * [Encoder Buffer OPS] Find (Output)
  */
 static int MFC_Encoder_Find_Outbuf(
     void          *pHandle,

@@ -25,7 +25,6 @@ exynos5_dirs := \
 	libswconverter \
 	libhwjpeg \
 	libhwc \
-	libcamera2 \
 	mobicore \
 	libkeymaster \
 	libsecurepath

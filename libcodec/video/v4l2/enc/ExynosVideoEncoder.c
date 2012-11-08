@@ -42,6 +42,7 @@
 
 #include "ExynosVideoApi.h"
 #include "ExynosVideoEnc.h"
+#include "OMX_Core.h"
 
 /* #define LOG_NDEBUG 0 */
 #define LOG_TAG "ExynosVideoEncoder"
@@ -1830,6 +1831,11 @@ static ExynosVideoErrorType MFC_Encoder_Enqueue_Inbuf(
         for (i = 0; i < nPlanes; i++)
             buf.m.planes[i].bytesused = dataSize[i];
     }
+
+    signed long long sec = (((OMX_BUFFERHEADERTYPE *)pPrivate)->nTimeStamp / 1E6);
+    signed long long usec = (((OMX_BUFFERHEADERTYPE *)pPrivate)->nTimeStamp) - (sec * 1E6);
+    buf.timestamp.tv_sec = (long)sec;
+    buf.timestamp.tv_usec = (long)usec;
 
     if (exynos_v4l2_qbuf(pCtx->hEnc, &buf) != 0) {
         ALOGE("%s: Failed to enqueue input buffer", __func__);

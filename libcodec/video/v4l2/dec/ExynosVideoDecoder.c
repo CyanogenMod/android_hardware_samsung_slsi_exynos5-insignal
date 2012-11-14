@@ -804,6 +804,13 @@ static ExynosVideoErrorType MFC_Decoder_Get_Geometry_Outbuf(
     bufferConf->nFrameHeight = fmt.fmt.pix_mp.height;
     bufferConf->eColorFormat = __V4L2PixelFormat_To_ColorFormatType(fmt.fmt.pix_mp.pixelformat);
 
+    if ((fmt.fmt.pix_mp.field == V4L2_FIELD_INTERLACED) ||
+        (fmt.fmt.pix_mp.field == V4L2_FIELD_INTERLACED_TB) ||
+        (fmt.fmt.pix_mp.field == V4L2_FIELD_INTERLACED_BT))
+        bufferConf->bInterlaced = VIDEO_TRUE;
+    else
+        bufferConf->bInterlaced = VIDEO_FALSE;
+
     bufferConf->cropRect.nTop = crop.c.top;
     bufferConf->cropRect.nLeft = crop.c.left;
     bufferConf->cropRect.nWidth = crop.c.width;
@@ -907,7 +914,6 @@ static ExynosVideoErrorType MFC_Decoder_Setup_Inbuf(
             pCtx->pInbuf[i].pGeometry = &pCtx->inbufGeometry;
             pCtx->pInbuf[i].bQueued = VIDEO_FALSE;
             pCtx->pInbuf[i].bRegistered = VIDEO_TRUE;
-            pCtx->pInbuf[i].bInterlaced = VIDEO_FALSE;
         }
     }
 
@@ -1028,7 +1034,6 @@ static ExynosVideoErrorType MFC_Decoder_Setup_Outbuf(
             pCtx->pOutbuf[i].pGeometry = &pCtx->outbufGeometry;
             pCtx->pOutbuf[i].bQueued = VIDEO_FALSE;
             pCtx->pOutbuf[i].bRegistered = VIDEO_TRUE;
-            pCtx->pOutbuf[i].bInterlaced = VIDEO_FALSE;
         }
     }
 
@@ -1691,13 +1696,6 @@ static ExynosVideoBuffer *MFC_Decoder_Dequeue_Outbuf(void *pHandle)
         pOutbuf->frameType = VIDEO_FRAME_OTHERS;
         break;
     };
-
-    if ((buf.field == V4L2_FIELD_INTERLACED) ||
-        (buf.field == V4L2_FIELD_INTERLACED_TB) ||
-        (buf.field == V4L2_FIELD_INTERLACED_BT))
-        pOutbuf->bInterlaced = VIDEO_TRUE;
-    else
-        pOutbuf->bInterlaced = VIDEO_FALSE;
 
     pOutbuf->bQueued = VIDEO_FALSE;
 

@@ -97,6 +97,7 @@ typedef struct _ExynosVideoGeometry {
     ExynosVideoRect            cropRect;
     ExynosVideoCodingType      eCompressionFormat;
     ExynosVideoColorFormatType eColorFormat;
+    ExynosVideoBoolType        bInterlaced;
 } ExynosVideoGeometry;
 
 typedef struct _ExynosVideoPlane {
@@ -114,7 +115,6 @@ typedef struct _ExynosVideoBuffer {
     ExynosVideoFrameType        frameType;
     ExynosVideoBoolType         bQueued;
     ExynosVideoBoolType         bRegistered;
-    ExynosVideoBoolType         bInterlaced;
     void                       *pPrivate;
 } ExynosVideoBuffer;
 

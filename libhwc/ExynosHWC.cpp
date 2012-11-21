@@ -899,10 +899,35 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 
         if (layer.handle) {
             private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
+            /*
+             * Note: The following sections enclosed in the macro GSC_VIDEO may or may
+             *       not be modified/removed at a later time
+             */
+#if defined(GSC_VIDEO)
+            if ((h->flags & GRALLOC_USAGE_PROTECTED) ||
+                ((int)get_yuv_planes(HAL_PIXEL_FORMAT_2_V4L2_PIX(h->format)) >= 0)) {
+#else
             if (h->flags & GRALLOC_USAGE_PROTECTED) {
+#endif
                 if (!video_layer) {
                     video_layer = &layer;
                     layer.compositionType = HWC_OVERLAY;
+#if defined(GSC_VIDEO)
+                    if (h->flags & GRALLOC_USAGE_EXTERNAL_DISP) {
+                        layer.displayFrame.left = 0;
+                        layer.displayFrame.top = 0;
+                        layer.displayFrame.right = pdev->hdmi_w;
+                        layer.displayFrame.bottom = pdev->hdmi_h;
+                        for (int j = 0; j < contents->numHwLayers; j++) {
+                            if (j == i)
+                                continue;
+                            hwc_layer_1_t &prevLayer = contents->hwLayers[j];
+                            prevLayer.compositionType = HWC_OVERLAY;
+                            prevLayer.flags |= HWC_SKIP_LAYER;
+                        }
+                        break;
+                    }
+#endif
                     ALOGV("\tlayer %u: video layer", i);
                     dump_layer(&layer);
                     continue;

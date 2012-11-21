@@ -1908,7 +1908,7 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
         for (size_t j = 0; j < NUM_GSC_DST_BUFS; j++)
             dev->gsc[i].dst_buf_fence[j] = -1;
 
-    dev->hdmi_mixer0 = open("/dev/v4l-subdev7", O_RDWR);
+    dev->hdmi_mixer0 = exynos_subdev_open_devname("s5p-mixer0", O_RDWR);
     if (dev->hdmi_mixer0 < 0) {
         ALOGE("failed to open hdmi mixer0 subdev");
         ret = dev->hdmi_mixer0;

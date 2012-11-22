@@ -245,8 +245,43 @@ static bool dst_crop_w_aligned(int dest_w)
     return (dest_w % dst_crop_w_alignement) == 0;
 }
 
+#ifdef SUPPORT_GSC_LOCAL_PATH
+static int exynos5_gsc_out_down_scl_ratio(int xres, int yres)
+{
+    if (((xres == 720) || (xres == 640)) && (yres == 480))
+        return 4;
+    else if ((xres == 1280) && (yres == 720))
+        return 4;
+    else if ((xres == 1280) && (yres == 800))
+        return 3;
+    else if ((xres == 1920) && (yres == 1080))
+        return 2;
+    else if ((xres == 800) && (yres == 1280))
+        return 2;
+    else
+        return 1;
+}
+
+static bool exynos5_format_is_supported_gsc_local(int format)
+{
+    switch (format) {
+    case HAL_PIXEL_FORMAT_EXYNOS_YV12:
+    case HAL_PIXEL_FORMAT_YCbCr_420_SP_TILED:
+        return true;
+    default:
+        return false;
+    }
+}
+#endif
+
+#ifdef SUPPORT_GSC_LOCAL_PATH
+static bool exynos5_supports_gscaler(struct exynos5_hwc_composer_device_1_t *pdev,
+        hwc_layer_1_t &layer, int format,
+        bool local_path, int loc_out_downscale)
+#else
 static bool exynos5_supports_gscaler(hwc_layer_1_t &layer, int format,
         bool local_path)
+#endif
 {
     private_handle_t *handle = private_handle_t::dynamicCast(layer.handle);
 
@@ -256,6 +291,19 @@ static bool exynos5_supports_gscaler(hwc_layer_1_t &layer, int format,
     bool rot90or270 = !!(layer.transform & HAL_TRANSFORM_ROT_90);
     // n.b.: HAL_TRANSFORM_ROT_270 = HAL_TRANSFORM_ROT_90 |
     //                               HAL_TRANSFORM_ROT_180
+
+#ifdef SUPPORT_GSC_LOCAL_PATH
+    if (local_path && rot90or270)
+        return 0;
+    /*
+     * if display co-ordinates are out of the lcd resolution,
+     * skip that scenario to OpenGL.
+     * GSC OTF can't handle such scenarios.
+     */
+    if (layer.displayFrame.left < 0 || layer.displayFrame.top < 0 ||
+        layer.displayFrame.right > pdev->xres || layer.displayFrame.bottom > pdev->yres)
+        return 0;
+#endif
 
     int src_w = WIDTH(layer.sourceCrop), src_h = HEIGHT(layer.sourceCrop);
     int dest_w, dest_h;
@@ -271,7 +319,11 @@ static bool exynos5_supports_gscaler(hwc_layer_1_t &layer, int format,
         align_crop_and_center(dest_w, dest_h, NULL,
                 GSC_DST_CROP_W_ALIGNMENT_RGB888);
 
+#ifdef SUPPORT_GSC_LOCAL_PATH
+    int max_downscale = local_path ? loc_out_downscale : 16;
+#else
     int max_downscale = local_path ? 4 : 16;
+#endif
     const int max_upscale = 8;
 
     return exynos5_format_is_supported_by_gscaler(format) &&
@@ -866,7 +918,11 @@ bool exynos5_supports_overlay(hwc_layer_1_t &layer, size_t i,
         return false;
     }
     if (exynos5_requires_gscaler(layer, handle->format)) {
+#ifdef SUPPORT_GSC_LOCAL_PATH
+        if (!exynos5_supports_gscaler(pdev, layer, handle->format, false, 1)) {
+#else
         if (!exynos5_supports_gscaler(layer, handle->format, false)) {
+#endif
             ALOGV("\tlayer %u: gscaler required but not supported", i);
             return false;
         }
@@ -906,6 +962,67 @@ inline hwc_rect intersection(const hwc_rect &r1, const hwc_rect &r2)
     return i;
 }
 
+#ifdef FORCEFB_YUVLAYER
+static inline bool yuv_src_cfg_changed(video_layer_config &c1, video_layer_config &c2)
+{
+    return c1.fw != c2.fw ||
+            c1.fh != c2.fh;
+}
+
+static inline bool yuv_dst_cfg_changed(video_layer_config &c1, video_layer_config &c2)
+{
+    return c1.x != c2.x ||
+            c1.y != c2.y ||
+            c1.w != c2.w ||
+            c1.h != c2.h ||
+            c1.format != c2.format ||
+            c1.rot != c2.rot ||
+            c1.cacheable != c2.cacheable ||
+            c1.drmMode != c2.drmMode;
+}
+
+static bool exynos5_compare_yuvlayer_config(hwc_layer_1_t &layer,
+        video_layer_config *pre_src_data, video_layer_config *pre_dst_data)
+{
+    private_handle_t *src_handle = private_handle_t::dynamicCast(layer.handle);
+    buffer_handle_t dst_buf;
+    private_handle_t *dst_handle;
+    int ret = 0;
+    bool reconfigure = 1;
+
+    video_layer_config new_src_cfg, new_dst_cfg;
+    memset(&new_src_cfg, 0, sizeof(new_src_cfg));
+    memset(&new_dst_cfg, 0, sizeof(new_dst_cfg));
+
+    new_src_cfg.x = layer.sourceCrop.left;
+    new_src_cfg.y = layer.sourceCrop.top;
+    new_src_cfg.w = WIDTH(layer.sourceCrop);
+    new_src_cfg.fw = src_handle->stride;
+    new_src_cfg.h = HEIGHT(layer.sourceCrop);
+    new_src_cfg.fh = src_handle->vstride;
+    new_src_cfg.format = src_handle->format;
+    new_src_cfg.drmMode = !!(src_handle->flags & GRALLOC_USAGE_PROTECTED);
+
+    new_dst_cfg.x = layer.displayFrame.left;
+    new_dst_cfg.y = layer.displayFrame.top;
+    new_dst_cfg.w = WIDTH(layer.displayFrame);
+    new_dst_cfg.h = HEIGHT(layer.displayFrame);
+    new_dst_cfg.rot = layer.transform;
+    new_dst_cfg.drmMode = new_src_cfg.drmMode;
+
+    /* check to save previous yuv layer configration */
+    if (pre_src_data && pre_dst_data)
+         reconfigure = yuv_src_cfg_changed(new_src_cfg, *pre_src_data) ||
+            yuv_dst_cfg_changed(new_dst_cfg, *pre_dst_data);
+
+    memcpy(pre_src_data, &new_src_cfg, sizeof(new_src_cfg));
+    memcpy(pre_dst_data, &new_dst_cfg, sizeof(new_dst_cfg));
+
+    return reconfigure;
+
+}
+#endif
+
 static int exynos5_prepare_fimd(exynos5_hwc_composer_device_1_t *pdev,
         hwc_display_contents_1_t* contents)
 {
@@ -914,6 +1031,44 @@ static int exynos5_prepare_fimd(exynos5_hwc_composer_device_1_t *pdev,
     memset(pdev->bufs.gsc_map, 0, sizeof(pdev->bufs.gsc_map));
 
     bool force_fb = pdev->force_gpu;
+
+#ifdef FORCEFB_YUVLAYER
+    pdev->forcefb_yuvlayer = 0;
+    pdev->configmode = 0;
+    /*
+     * check whether same config or different config,
+     * should be waited until meeting the NUM_COFIG)STABLE
+     * before stablizing config, should be composed by GPU
+     * faster stablizing config, should be returned by OVERLAY
+     */
+    for (size_t i = 0; i < contents->numHwLayers; i++) {
+        hwc_layer_1_t &layer = contents->hwLayers[i];
+        if (layer.handle) {
+            private_handle_t *handle = private_handle_t::dynamicCast(layer.handle);
+            if (exynos5_format_is_supported_gsc_local(handle->format) &&
+                (pdev->gsc[FIMD_GSC_IDX].gsc_mode != exynos5_gsc_map_t::GSC_M2M)) {
+                if ((layer.flags & HWC_SKIP_LAYER) ||
+                    exynos5_compare_yuvlayer_config(layer, &pdev->prev_src_config, &pdev->prev_dst_config)) {
+                    /* for preare */
+                    force_fb = 1;
+                    /* for set */
+                    pdev->forcefb_yuvlayer = 1;
+                    pdev->count_sameconfig = 0;
+                } else {
+                    if (pdev->count_sameconfig < NUM_CONFIG_STABLE) {
+                        force_fb = 1;
+                        pdev->forcefb_yuvlayer = 1;
+                        pdev->count_sameconfig++;
+                    } else {
+                        pdev->configmode = 1;
+                    }
+                }
+            }
+        }
+    }
+#endif
+retry:
+
     for (size_t i = 0; i < NUM_HW_WINDOWS; i++)
         pdev->bufs.overlay_map[i] = -1;
 
@@ -1075,6 +1230,22 @@ static int exynos5_prepare_fimd(exynos5_hwc_composer_device_1_t *pdev,
             continue;
         }
 
+#ifdef FORCEFB_YUVLAYER
+        if (layer.handle) {
+            private_handle_t *handle = private_handle_t::dynamicCast(layer.handle);
+            if (exynos5_format_is_supported_gsc_local(handle->format)) {
+                /* in case of changing compostiontype form GSC to FRAMEBUFFER for yuv layer */
+                if ((pdev->configmode == 1) && (layer.compositionType == HWC_FRAMEBUFFER)) {
+                    pdev->forcefb_yuvlayer = 1;
+                    pdev->configmode = 0;
+                    pdev->count_sameconfig = 0;
+                    /* for prepare */
+                    force_fb = 1;
+                    goto retry;
+                }
+            }
+         }
+#endif
         if (layer.compositionType != HWC_FRAMEBUFFER &&
                 layer.compositionType != HWC_FRAMEBUFFER_TARGET) {
             ALOGV("assigning layer %u to window %u", i, nextWindow);
@@ -1094,18 +1265,36 @@ static int exynos5_prepare_fimd(exynos5_hwc_composer_device_1_t *pdev,
                          continue;
                     }
 #endif
+#ifdef SUPPORT_GSC_LOCAL_PATH
+                    int down_ratio = exynos5_gsc_out_down_scl_ratio(pdev->xres, pdev->yres);
+                    if (!exynos5_supports_gscaler(pdev, layer, handle->format, true, down_ratio)) {
+                        ALOGV("\tusing gscaler %u in M2M", AVAILABLE_GSC_UNITS[nextWindow]);
+                        pdev->bufs.gsc_map[nextWindow].mode = exynos5_gsc_map_t::GSC_M2M;
+                        pdev->gsc[nextWindow].gsc_mode = exynos5_gsc_map_t::GSC_M2M;
+                    } else {
+                        ALOGV("\tusing gscaler %u in LOCAL-PATH", AVAILABLE_GSC_UNITS[nextWindow]);
+                        pdev->bufs.gsc_map[nextWindow].mode = exynos5_gsc_map_t::GSC_LOCAL;
+                        pdev->gsc[nextWindow].gsc_mode = exynos5_gsc_map_t::GSC_LOCAL;
+                    }
+                    pdev->bufs.gsc_map[nextWindow].idx = FIMD_GSC_IDX;
+#else
                     ALOGV("\tusing gscaler %u", AVAILABLE_GSC_UNITS[FIMD_GSC_IDX]);
                     pdev->bufs.gsc_map[nextWindow].mode =
                             exynos5_gsc_map_t::GSC_M2M;
                     pdev->bufs.gsc_map[nextWindow].idx = FIMD_GSC_IDX;
+#endif
                 }
             }
             nextWindow++;
         }
     }
 
+#ifdef FORCEFB_YUVLAYER
+    pdev->gsc_use = gsc_used;
+#else
     if (!gsc_used)
         exynos5_cleanup_gsc_m2m(pdev, FIMD_GSC_IDX);
+#endif
 
     if (fb_needed)
         pdev->bufs.fb_window = first_fb;
@@ -1129,6 +1318,123 @@ static void hdmi_cal_dest_rect(int src_w, int src_h, int dst_w, int dst_h, struc
         dst_rect->height = dst_h;
     }
 }
+#ifdef SUPPORT_GSC_LOCAL_PATH
+static int exynos5_config_gsc_localout(exynos5_hwc_composer_device_1_t *pdev,
+        hwc_layer_1_t &layer,
+        exynos5_gsc_data_t *gsc_data,
+        int gsc_idx)
+{
+    ALOGV("configuring gscaler %u for memory-to-fimd-localout", gsc_idx);
+
+    private_handle_t *src_handle = private_handle_t::dynamicCast(layer.handle);
+    buffer_handle_t dst_buf;
+    private_handle_t *dst_handle;
+    int ret = 0;
+
+    exynos_gsc_img src_cfg, dst_cfg;
+    memset(&src_cfg, 0, sizeof(src_cfg));
+    memset(&dst_cfg, 0, sizeof(dst_cfg));
+
+    src_cfg.x = layer.sourceCrop.left;
+    src_cfg.y = layer.sourceCrop.top;
+    src_cfg.w = WIDTH(layer.sourceCrop);
+    src_cfg.fw = src_handle->stride;
+    src_cfg.h = HEIGHT(layer.sourceCrop);
+    src_cfg.fh = src_handle->vstride;
+    src_cfg.yaddr = src_handle->fd;
+    if (exynos5_format_is_ycrcb(src_handle->format)) {
+        src_cfg.uaddr = src_handle->fd2;
+        src_cfg.vaddr = src_handle->fd1;
+    } else {
+        src_cfg.uaddr = src_handle->fd1;
+        src_cfg.vaddr = src_handle->fd2;
+    }
+    src_cfg.format = src_handle->format;
+    src_cfg.drmMode = !!(src_handle->flags & GRALLOC_USAGE_PROTECTED);
+    src_cfg.acquireFenceFd = layer.acquireFenceFd;
+
+    dst_cfg.x = layer.displayFrame.left;
+    dst_cfg.y = layer.displayFrame.top;
+    dst_cfg.fw = pdev->xres;
+    dst_cfg.fh = pdev->yres;
+    dst_cfg.w = WIDTH(layer.displayFrame);
+    dst_cfg.h = HEIGHT(layer.displayFrame);
+    dst_cfg.w = min(dst_cfg.w, dst_cfg.fw - dst_cfg.x);
+    dst_cfg.h = min(dst_cfg.h, dst_cfg.fh - dst_cfg.y);
+    dst_cfg.format = HAL_PIXEL_FORMAT_YCbCr_420_SP;
+    dst_cfg.rot = layer.transform;
+    dst_cfg.drmMode = src_cfg.drmMode;
+
+    dst_cfg.yaddr = NULL;
+
+    ALOGV("source configuration:");
+    dump_gsc_img(src_cfg);
+
+    if (!gsc_data->gsc || gsc_src_cfg_changed(src_cfg, gsc_data->src_cfg) ||
+            gsc_dst_cfg_changed(dst_cfg, gsc_data->dst_cfg)) {
+        int dst_stride;
+
+        int w = ALIGN(WIDTH(layer.displayFrame), GSC_W_ALIGNMENT);
+        int h = ALIGN(HEIGHT(layer.displayFrame), GSC_H_ALIGNMENT);
+
+        if (gsc_data->gsc) {
+#ifdef GSC_OUT_WA
+            ret = exynos_gsc_stop_exclusive(gsc_data->gsc);
+            pdev->need_reqbufs = true;
+#else
+            ret = exynos_gsc_stop_exclusive(gsc_data->gsc);
+#endif
+            if (ret < 0) {
+                ALOGE("failed to stop gscaler %u", gsc_idx);
+                goto err_gsc_local;
+            }
+        }
+
+        if (!gsc_data->gsc) {
+            gsc_data->gsc = exynos_gsc_create_exclusive(AVAILABLE_GSC_UNITS[gsc_idx],
+                GSC_OUTPUT_MODE, GSC_OUT_FIMD, false);
+            if (!gsc_data->gsc) {
+                ALOGE("failed to create gscaler handle");
+                ret = -1;
+                goto err_gsc_local;
+            }
+        }
+
+        ret = exynos_gsc_config_exclusive(gsc_data->gsc, &src_cfg, &dst_cfg);
+        if (ret < 0) {
+            ALOGE("failed to configure gscaler %u", gsc_idx);
+            goto err_gsc_local;
+        }
+    }
+
+    ALOGV("destination configuration:");
+    dump_gsc_img(dst_cfg);
+
+    ret = exynos_gsc_run_exclusive(gsc_data->gsc, &src_cfg, &dst_cfg);
+    if (ret < 0) {
+        ALOGE("failed to run gscaler %u", gsc_idx);
+        goto err_gsc_local;
+    }
+
+    memcpy(&gsc_data->src_cfg, &src_cfg, sizeof(gsc_data->src_cfg));
+    memcpy(&gsc_data->dst_cfg, &dst_cfg, sizeof(gsc_data->dst_cfg));
+
+    layer.releaseFenceFd = src_cfg.releaseFenceFd;
+    return 0;
+
+err_gsc_local:
+    if (src_cfg.acquireFenceFd >= 0)
+        close(src_cfg.acquireFenceFd);
+
+    exynos_gsc_destroy(gsc_data->gsc);
+    gsc_data->gsc = NULL;
+
+    memset(&gsc_data->src_cfg, 0, sizeof(gsc_data->src_cfg));
+    memset(&gsc_data->dst_cfg, 0, sizeof(gsc_data->dst_cfg));
+
+    return ret;
+}
+#endif
 
 static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
         hwc_display_contents_1_t* contents)
@@ -1552,6 +1858,13 @@ static void exynos5_config_overlay(hwc_layer_1_t *layer, s3c_fb_win_config &cfg,
         return;
     }
 
+#ifdef FORCEFB_YUVLAYER
+    if ((layer->acquireFenceFd >= 0) && pdev->forcefb_yuvlayer) {
+        sync_wait(layer->acquireFenceFd, 1000);
+        close(layer->acquireFenceFd);
+        layer->acquireFenceFd = -1;
+    }
+#endif
     private_handle_t *handle = private_handle_t::dynamicCast(layer->handle);
     exynos5_config_handle(handle, layer->sourceCrop, layer->displayFrame,
             layer->blending, layer->acquireFenceFd, cfg, pdev);
@@ -1613,6 +1926,18 @@ static int exynos5_post_fimd(exynos5_hwc_composer_device_1_t *pdev,
                 exynos5_config_handle(dst_handle, sourceCrop,
                         layer.displayFrame, layer.blending, fence, config[i],
                         pdev);
+#ifdef SUPPORT_GSC_LOCAL_PATH
+            } else if (pdata->gsc_map[i].mode == exynos5_gsc_map_t::GSC_LOCAL) {
+                int gsc_idx = pdata->gsc_map[i].idx;
+                exynos5_gsc_data_t &gsc = pdev->gsc[gsc_idx];
+                int err = exynos5_config_gsc_localout(pdev, layer, &gsc, gsc_idx);
+
+                if (err < 0) {
+                    ALOGE("failed to config_gsc_localout %u input for layer %u",
+                            gsc_idx, i);
+                    continue;
+                }
+#endif
             } else {
 #ifdef WAIT_FOR_RENDER_FINISH
                 ExynosWaitForRenderFinish(pdev->gralloc_module, &layer.handle, 1);
@@ -1628,6 +1953,25 @@ static int exynos5_post_fimd(exynos5_hwc_composer_device_1_t *pdev,
         ALOGV("window %u configuration:", i);
         dump_config(config[i]);
     }
+
+#ifdef SUPPORT_GSC_LOCAL_PATH
+    if (!pdev->gsc_use) {
+        if (pdev->gsc[FIMD_GSC_IDX].gsc_mode == exynos5_gsc_map_t::GSC_M2M) {
+            exynos5_cleanup_gsc_m2m(pdev, FIMD_GSC_IDX);
+            pdev->gsc[FIMD_GSC_IDX].gsc_mode = exynos5_gsc_map_t::GSC_NONE;
+        } else if (pdev->gsc[FIMD_GSC_IDX].gsc_mode == exynos5_gsc_map_t::GSC_LOCAL) {
+#ifdef GSC_OUT_WA
+            exynos_gsc_stop_exclusive(pdev->gsc[0].gsc);
+            pdev->need_reqbufs = true;
+            pdev->gsc[FIMD_GSC_IDX].gsc_mode = exynos5_gsc_map_t::GSC_NONE;
+#else
+            exynos_gsc_destroy(pdev->gsc[FIMD_GSC_IDX].gsc);
+            pdev->gsc[FIMD_GSC_IDX].gsc = NULL;
+            pdev->gsc[FIMD_GSC_IDX].gsc_mode = exynos5_gsc_map_t::GSC_NONE;
+#endif
+        }
+    }
+#endif
 
     int ret = ioctl(pdev->fd, S3CFB_WIN_CONFIG, &win_data);
     for (size_t i = 0; i < NUM_HW_WINDOWS; i++)
@@ -1723,6 +2067,12 @@ static int exynos5_set_fimd(exynos5_hwc_composer_device_1_t *pdev,
                 GSCLayer = true;
                 if (!pdev->hdmi_hpd && pdev->mS3DMode == S3D_MODE_READY)
                     pdev->mS3DMode = S3D_MODE_RUNNING;
+#endif
+#ifdef SUPPORT_GSC_LOCAL_PATH
+            } else if (pdev->bufs.gsc_map[i].mode == exynos5_gsc_map_t::GSC_LOCAL) {
+                /* Only use close(dup_fd) case, working fine. */
+                close(dup_fd);
+                continue;
 #endif
             } else {
                 layer.releaseFenceFd = dup_fd;
@@ -2110,6 +2460,19 @@ static void handle_vsync_event(struct exynos5_hwc_composer_device_1_t *pdev)
     }
     buf[sizeof(buf) - 1] = '\0';
 
+#ifdef GSC_OUT_WA
+    if (pdev->need_reqbufs) {
+        if (pdev->wait_vsync_cnt > 0) {
+            exynos_gsc_free_and_close(pdev->gsc[0].gsc);
+            pdev->gsc[0].gsc = NULL;
+            pdev->need_reqbufs = false;
+            pdev->wait_vsync_cnt = 0;
+        } else {
+            pdev->wait_vsync_cnt++;
+        }
+    }
+#endif
+
     errno = 0;
     uint64_t timestamp = strtoull(buf, NULL, 0);
     if (!errno)
@@ -2284,7 +2647,7 @@ static void exynos5_dump(hwc_composer_device_1* dev, char *buff, int buff_len)
         struct s3c_fb_win_config &config = pdev->last_config[i];
         if (config.state == config.S3C_FB_WIN_STATE_DISABLED) {
             result.appendFormat(" %8s | %8s | %8s | %5s | %6s | %13s | %13s",
-                    "DISABLED", "-", "-", "-", "-", "-", "-");
+                    "OVERLAY", "-", "-", "-", "-", "-", "-");
         }
         else {
             if (config.state == config.S3C_FB_WIN_STATE_COLOR)
@@ -2299,11 +2662,16 @@ static void exynos5_dump(hwc_composer_device_1* dev, char *buff, int buff_len)
             result.appendFormat(" | [%5d,%5d] | [%5u,%5u]", config.x, config.y,
                     config.w, config.h);
         }
-        if (pdev->last_gsc_map[i].mode == exynos5_gsc_map_t::GSC_NONE)
+        if (pdev->last_gsc_map[i].mode == exynos5_gsc_map_t::GSC_NONE) {
             result.appendFormat(" | %3s", "-");
-        else
+        } else {
             result.appendFormat(" | %3d",
                     AVAILABLE_GSC_UNITS[pdev->last_gsc_map[i].idx]);
+            if (pdev->last_gsc_map[i].mode == exynos5_gsc_map_t::GSC_M2M)
+                result.appendFormat(" | %10s","GSC_M2M");
+            else
+                result.appendFormat(" | %10s","GSC_LOCAL");
+        }
         result.append("\n");
     }
 
@@ -2599,6 +2967,10 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
     }
 #endif
 
+#ifdef GSC_OUT_WA
+    dev->need_reqbufs = false;
+    dev->wait_vsync_cnt = 0;
+#endif
     return 0;
 
 err_vsync:

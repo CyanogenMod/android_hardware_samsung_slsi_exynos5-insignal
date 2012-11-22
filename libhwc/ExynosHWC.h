@@ -95,11 +95,34 @@ typedef enum _COMPOS_MODE_SWITCH {
 
 struct exynos5_hwc_composer_device_1_t;
 
+#ifdef SUPPORT_GSC_LOCAL_PATH
+#define GSC_OUT_WA /* sequence change */
+#define FORCEFB_YUVLAYER /* video or camera preview */
+#define NUM_CONFIG_STABLE   100
+#endif
+#ifdef FORCEFB_YUVLAYER
+typedef struct {
+    uint32_t x;
+    uint32_t y;
+    uint32_t w;
+    uint32_t h;
+    uint32_t fw;
+    uint32_t fh;
+    uint32_t format;
+    uint32_t rot;
+    uint32_t cacheable;
+    uint32_t drmMode;
+} video_layer_config;
+#endif
+
 struct exynos5_gsc_map_t {
     enum {
         GSC_NONE = 0,
         GSC_M2M,
         // TODO: GSC_LOCAL_PATH
+#ifdef SUPPORT_GSC_LOCAL_PATH
+        GSC_LOCAL,
+#endif
     } mode;
     int idx;
 };
@@ -118,6 +141,9 @@ struct exynos5_gsc_data_t {
     buffer_handle_t dst_buf[NUM_GSC_DST_BUFS];
     int             dst_buf_fence[NUM_GSC_DST_BUFS];
     size_t          current_buf;
+#ifdef SUPPORT_GSC_LOCAL_PATH
+    int             gsc_mode;
+#endif
 };
 
 struct hdmi_layer_t {
@@ -200,6 +226,21 @@ struct exynos5_hwc_composer_device_1_t {
     int mCecFd;
     int mCecPaddr;
     int mCecLaddr;
+#endif
+
+#ifdef GSC_OUT_WA
+    bool                    need_reqbufs;
+    int                     wait_vsync_cnt;
+#endif
+
+#ifdef FORCEFB_YUVLAYER
+    bool                    forcefb_yuvlayer;
+    int                     count_sameconfig;
+    /* g3d = 0, gsc = 1 */
+    int                     configmode;
+    int                     gsc_use;
+    video_layer_config      prev_src_config;
+    video_layer_config      prev_dst_config;
 #endif
 };
 

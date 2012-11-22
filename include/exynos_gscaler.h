@@ -388,6 +388,12 @@ It stops the GSC OUT streaming.
 int exynos_gsc_stop_exclusive
 (void *handle);
 
+/*
+*api for GSC free_and_close.
+*/
+int exynos_gsc_free_and_close
+(void *handle);
+
 enum {
     GSC_M2M_MODE = 0,
     GSC_OUTPUT_MODE,

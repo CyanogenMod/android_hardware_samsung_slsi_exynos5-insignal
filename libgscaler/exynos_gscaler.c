@@ -470,7 +470,7 @@ static int m_exynos_gsc_m2m_create(
 
 static bool m_exynos_gsc_out_destroy(struct GSC_HANDLE *gsc_handle)
 {
-    struct media_link * links;
+    struct media_link *links;
     int i;
 
     Exynos_gsc_In();
@@ -487,29 +487,47 @@ static bool m_exynos_gsc_out_destroy(struct GSC_HANDLE *gsc_handle)
             gsc_handle->src.stream_on = false;
     }
 
-    /* unlink : gscaler-out --> fimd */
-        for (i = 0; i < (int) gsc_handle->gsc_sd_entity->num_links; i++) {
-            links = &gsc_handle->gsc_sd_entity->links[i];
+    Exynos_gsc_Out();
 
-            if (links == NULL || links->source->entity != gsc_handle->gsc_sd_entity ||
-                                 links->sink->entity   != gsc_handle->sink_sd_entity) {
-                continue;
-            } else if (exynos_media_setup_link(gsc_handle->media0,  links->source,
-                                                                        links->sink, 0) < 0) {
-                ALOGE("%s::exynos_media_setup_unlink [src.entity=%d->sink.entity=%d] failed",
-                      __func__, links->source->entity->info.id, links->sink->entity->info.id);
-            }
-        }
+    return true;
 
-        close(gsc_handle->gsc_vd_entity->fd);
-        close(gsc_handle->gsc_sd_entity->fd);
-        gsc_handle->gsc_vd_entity->fd = -1;
-        gsc_handle->gsc_vd_entity->fd = -1;
+}
 
-        Exynos_gsc_Out();
+int exynos_gsc_free_and_close(void *handle)
+{
+    struct GSC_HANDLE *gsc_handle;
+    struct v4l2_requestbuffers reqbuf;
+    struct v4l2_buffer buf;
+    struct v4l2_plane  planes[NUM_OF_GSC_PLANES];
+    int i;
 
-        return true;
+    Exynos_gsc_In();
 
+    gsc_handle = (struct GSC_HANDLE *)handle;
+    if (handle == NULL) {
+        ALOGE("%s::handle == NULL() fail", __func__);
+        return -1;
+    }
+
+    memset(&reqbuf, 0, sizeof(struct v4l2_requestbuffers));
+    reqbuf.type   = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
+    reqbuf.memory = V4L2_MEMORY_DMABUF;
+    reqbuf.count  = 0;
+
+    if (exynos_v4l2_reqbufs(gsc_handle->gsc_vd_entity->fd, &reqbuf) < 0) {
+        ALOGE("%s::request buffers failed", __func__);
+        return -1;
+    }
+
+    close(gsc_handle->gsc_sd_entity->fd);
+    close(gsc_handle->gsc_vd_entity->fd);
+    gsc_handle->gsc_sd_entity->fd = -1;
+    gsc_handle->gsc_vd_entity->fd = -1;
+
+    exynos_gsc_destroy(gsc_handle);
+    Exynos_gsc_Out();
+
+    return 0;
 }
 
 static bool m_exynos_gsc_destroy(
@@ -1436,15 +1454,6 @@ int exynos_gsc_out_config(void *handle,
             return -1;
     }
 
-    if (m_exynos_gsc_check_dst_size(&gsc_handle->dst_img.fw, &gsc_handle->dst_img.fh,
-                                        &gsc_handle->dst_img.x, &gsc_handle->dst_img.y,
-                                        &gsc_handle->dst_img.w, &gsc_handle->dst_img.h,
-                                        dst_color_space,
-                                        rotate) == false) {
-            ALOGE("%s::m_exynos_gsc_check_dst_size() fail", __func__);
-            return -1;
-    }
-
     /*set: src v4l2_buffer*/
     gsc_handle->src.src_buf_idx = 0;
     gsc_handle->src.qbuf_cnt = 0;
@@ -1716,10 +1725,10 @@ static int exynos_gsc_out_run(void *handle,
 int exynos_gsc_out_stop(void *handle)
 {
     struct GSC_HANDLE *gsc_handle;
-    struct v4l2_requestbuffers reqbuf;
     struct v4l2_buffer buf;
     struct v4l2_plane  planes[NUM_OF_GSC_PLANES];
     int i;
+    struct media_link *links;
 
     Exynos_gsc_In();
 
@@ -1741,13 +1750,17 @@ int exynos_gsc_out_stop(void *handle)
     gsc_handle->src.src_buf_idx = 0;
     gsc_handle->src.qbuf_cnt = 0;
 
-    reqbuf.type   = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
-    reqbuf.memory = V4L2_MEMORY_DMABUF;
-    reqbuf.count  = 0;
+    /* unlink : gscaler-out --> fimd */
+    for (i = 0; i < (int) gsc_handle->gsc_sd_entity->num_links; i++) {
+        links = &gsc_handle->gsc_sd_entity->links[i];
 
-    if (exynos_v4l2_reqbufs(gsc_handle->gsc_vd_entity->fd, &reqbuf) < 0) {
-        ALOGE("%s::request buffers failed", __func__);
-        return -1;
+        if (links == NULL || links->source->entity != gsc_handle->gsc_sd_entity ||
+                             links->sink->entity   != gsc_handle->sink_sd_entity)
+            continue;
+        else if (exynos_media_setup_link(gsc_handle->media0,  links->source,
+                                                                    links->sink, 0) < 0)
+            ALOGE("%s::exynos_media_setup_unlink [src.entity=%d->sink.entity=%d] failed",
+                  __func__, links->source->entity->info.id, links->sink->entity->info.id);
     }
 
     Exynos_gsc_Out();

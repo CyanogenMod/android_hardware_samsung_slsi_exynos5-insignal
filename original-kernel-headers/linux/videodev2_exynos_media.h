@@ -87,13 +87,24 @@
 #define V4L2_CID_TV_UPDATE		(V4L2_CID_EXYNOS_BASE + 63)
 #define V4L2_CID_TV_SET_COLOR_RANGE	(V4L2_CID_EXYNOS_BASE + 64)
 #define V4L2_CID_TV_HDCP_ENABLE		(V4L2_CID_EXYNOS_BASE + 65)
+#define V4L2_CID_TV_HDMI_STATUS		(V4L2_CID_EXYNOS_BASE + 66)
 
 /* for color space conversion equation selection */
 #define V4L2_CID_CSC_EQ_MODE		(V4L2_CID_EXYNOS_BASE + 100)
 #define V4L2_CID_CSC_EQ			(V4L2_CID_EXYNOS_BASE + 101)
 #define V4L2_CID_CSC_RANGE		(V4L2_CID_EXYNOS_BASE + 102)
 
-#define V4L2_CID_CONTENT_PROTECTION	(V4L2_CID_EXYNOS_BASE + 201)
+/* for DRM playback scenario */
+#define V4L2_CID_CONTENT_PROTECTION	(V4L2_CID_EXYNOS_BASE + 199)
+#define V4L2_CID_USE_SYSMMU		(V4L2_CID_EXYNOS_BASE + 200)
+/* for gscaler m2m context information */
+#define V4L2_CID_M2M_CTX_NUM		(V4L2_CID_EXYNOS_BASE + 201)
+
+/* for 2d blending operation */
+#define V4L2_CID_2D_BLEND_OP		(V4L2_CID_EXYNOS_BASE + 103)
+#define V4L2_CID_2D_COLOR_FILL		(V4L2_CID_EXYNOS_BASE + 104)
+#define V4L2_CID_2D_DITH		(V4L2_CID_EXYNOS_BASE + 105)
+#define V4L2_CID_2D_FMT_PREMULTI	(V4L2_CID_EXYNOS_BASE + 106)
 
 /* CID base for MFC controls (MPEG_CLASS) */
 #define V4L2_CID_MPEG_MFC_BASE		(V4L2_CTRL_CLASS_MPEG | 0x2000)
@@ -170,6 +181,9 @@ enum v4l2_mpeg_mfc51_video_frame_type {
 /* new entry for enum v4l2_mpeg_video_mpeg4_level */
 #define V4L2_MPEG_VIDEO_MPEG4_LEVEL_6		8
 
+/* new entry for enum v4l2_mpeg_video_header_mode */
+#define V4L2_MPEG_VIDEO_HEADER_MODE_AT_THE_READY	2
+
 /* proposed CIDs, based on 3.3-rc3 */
 #define V4L2_CID_MPEG_VIDEO_VBV_DELAY		(V4L2_CID_MPEG_MFC_BASE + 26)
 
@@ -234,4 +248,10 @@ enum v4l2_mpeg_video_h264_hierarchical_coding_type {
 
 #define V4L2_CID_MPEG_VIDEO_H264_MVC_VIEW_ID			\
 					(V4L2_CID_MPEG_MFC_BASE + 42)
+
+#define V4L2_CID_MPEG_MFC51_VIDEO_FRAME_STATUS			\
+					(V4L2_CID_MPEG_MFC_BASE + 43)
+
+#define V4L2_CID_MPEG_MFC51_VIDEO_I_FRAME_DECODING		\
+					(V4L2_CID_MPEG_MFC_BASE + 44)
 #endif /* __LINUX_VIDEODEV2_EXYNOS_MEDIA_H */

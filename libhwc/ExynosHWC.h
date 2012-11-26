@@ -70,6 +70,13 @@ const size_t NUM_GSC_UNITS = sizeof(AVAILABLE_GSC_UNITS) /
 const size_t BURSTLEN_BYTES = 16 * 8;
 const size_t NUM_HDMI_BUFFERS = 3;
 
+#ifdef HWC_SERVICES
+#include "../libhwcService/ExynosHWCService.h"
+namespace android {
+class ExynosHWCService;
+}
+#endif
+
 struct exynos5_hwc_composer_device_1_t;
 
 struct exynos5_gsc_map_t {
@@ -142,5 +149,8 @@ struct exynos5_hwc_composer_device_1_t {
     size_t                  last_fb_window;
     const void              *last_handles[NUM_HW_WINDOWS];
     exynos5_gsc_map_t       last_gsc_map[NUM_HW_WINDOWS];
+#ifdef HWC_SERVICES
+    android::ExynosHWCService   *mHWCService;
+#endif
 };
 #endif

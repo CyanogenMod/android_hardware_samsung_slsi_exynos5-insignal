@@ -2014,6 +2014,11 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
 
     *device = &dev->base.common;
 
+#ifdef HWC_SERVICES
+    dev->mHWCService = android::ExynosHWCService::getExynosHWCService();
+    dev->mHWCService->setExynosHWCCtx(dev);
+#endif
+
     ret = pthread_create(&dev->vsync_thread, NULL, hwc_vsync_thread, dev);
     if (ret) {
         ALOGE("failed to start vsync thread: %s", strerror(ret));

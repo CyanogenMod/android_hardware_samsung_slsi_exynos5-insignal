@@ -54,6 +54,7 @@
 #include "exynos_v4l2.h"
 #include "s5p_tvout_v4l2.h"
 #include "ExynosHWCModule.h"
+#include "videodev2.h"
 
 const size_t NUM_HW_WINDOWS = 5;
 const size_t NO_FB_NEEDED = NUM_HW_WINDOWS + 1;

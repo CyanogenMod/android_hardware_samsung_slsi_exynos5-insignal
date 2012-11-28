@@ -877,6 +877,21 @@ static int exynos5_prepare_fimd(exynos5_hwc_composer_device_1_t *pdev,
     return 0;
 }
 
+static void hdmi_cal_dest_rect(int src_w, int src_h, int dst_w, int dst_h, struct v4l2_rect *dst_rect)
+{
+    if (dst_w * src_h <= dst_h * src_w) {
+        dst_rect->left   = 0;
+        dst_rect->top    = (dst_h - ((dst_w * src_h) / src_w)) >> 1;
+        dst_rect->width  = dst_w;
+        dst_rect->height = ((dst_w * src_h) / src_w);
+    } else {
+        dst_rect->left   = (dst_w - ((dst_h * src_w) / src_h)) >> 1;
+        dst_rect->top    = 0;
+        dst_rect->width  = ((dst_h * src_w) / src_h);
+        dst_rect->height = dst_h;
+    }
+}
+
 static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
         hwc_display_contents_1_t* contents)
 {
@@ -914,10 +929,15 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                     layer.compositionType = HWC_OVERLAY;
 #if defined(GSC_VIDEO)
                     if (h->flags & GRALLOC_USAGE_EXTERNAL_DISP) {
-                        layer.displayFrame.left = 0;
-                        layer.displayFrame.top = 0;
-                        layer.displayFrame.right = pdev->hdmi_w;
-                        layer.displayFrame.bottom = pdev->hdmi_h;
+                        struct v4l2_rect dest_rect;
+
+                        hdmi_cal_dest_rect(WIDTH(layer.sourceCrop), HEIGHT(layer.sourceCrop),
+                                pdev->hdmi_w, pdev->hdmi_h, &dest_rect);
+
+                        layer.displayFrame.left = dest_rect.left;
+                        layer.displayFrame.top = dest_rect.top;
+                        layer.displayFrame.right = dest_rect.width + dest_rect.left;
+                        layer.displayFrame.bottom = dest_rect.height + dest_rect.top;
                         for (int j = 0; j < contents->numHwLayers; j++) {
                             if (j == i)
                                 continue;

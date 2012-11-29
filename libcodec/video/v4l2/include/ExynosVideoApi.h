@@ -76,6 +76,7 @@ typedef enum _ExynosVideoFrameStatusType {
     VIDEO_FRAME_STATUS_DISPLAY_ONLY,
     VIDEO_FRAME_STATUS_DECODING_FINISHED,
     VIDEO_FRAME_STATUS_CHANGE_RESOL,
+    VIDEO_FRAME_STATUS_ENABLED_S3D,
 } ExynosVideoFrameStatusType;
 
 typedef enum _ExynosVideoFrameSkipMode {

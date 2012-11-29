@@ -1668,7 +1668,11 @@ static ExynosVideoBuffer *MFC_Decoder_Dequeue_Outbuf(void *pHandle)
 
     switch (value) {
     case 0:
-        pOutbuf->displayStatus = VIDEO_FRAME_STATUS_DECODING_ONLY;
+        exynos_v4l2_g_ctrl(pCtx->hDec, V4L2_CID_MPEG_MFC51_VIDEO_CHECK_STATE, &state);
+        if (state == 4) /* DPB realloc for S3D SEI */
+            pOutbuf->displayStatus = VIDEO_FRAME_STATUS_ENABLED_S3D;
+        else
+            pOutbuf->displayStatus = VIDEO_FRAME_STATUS_DECODING_ONLY;
         break;
     case 1:
         pOutbuf->displayStatus = VIDEO_FRAME_STATUS_DISPLAY_DECODING;

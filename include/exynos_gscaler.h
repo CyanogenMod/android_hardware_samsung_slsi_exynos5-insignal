@@ -80,6 +80,7 @@ typedef struct {
     uint32_t narrowRgb;
     int      acquireFenceFd;
     int      releaseFenceFd;
+    int      mem_type;
 } exynos_gsc_img;
 
 /*
@@ -278,6 +279,7 @@ int exynos_gsc_set_rotation(
 int exynos_gsc_set_src_addr(
     void *handle,
     void *addr[3],
+    int mem_type,
     int acquireFenceFd);
 
 /*!
@@ -298,6 +300,7 @@ int exynos_gsc_set_src_addr(
 int exynos_gsc_set_dst_addr(
     void *handle,
     void *addr[3],
+    int mem_type,
     int acquireFenceFd);
 
 /*!
@@ -403,6 +406,13 @@ enum {
 enum {
     GSC_DONE_CNG_CFG = 0,
     GSC_NEED_CNG_CFG,
+};
+
+enum {
+    GSC_MEM_MMAP = 1,
+    GSC_MEM_USERPTR,
+    GSC_MEM_OVERLAY,
+    GSC_MEM_DMABUF,
 };
 
 #ifdef __cplusplus

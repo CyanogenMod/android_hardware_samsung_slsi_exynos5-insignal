@@ -654,7 +654,7 @@ static bool m_exynos_gsc_set_format(
 
     req_buf.count  = 1;
     req_buf.type   = info->buf_type;
-    req_buf.memory = V4L2_MEMORY_DMABUF;
+    req_buf.memory = info->mem_type;
     if (exynos_v4l2_reqbufs(fd, &req_buf) < 0) {
         ALOGE("%s::exynos_v4l2_reqbufs() fail", __func__);
         return false;
@@ -680,13 +680,16 @@ static bool m_exynos_gsc_set_addr(
     info->buffer.index    = 0;
     info->buffer.flags    = V4L2_BUF_FLAG_USE_SYNC;
     info->buffer.type     = info->buf_type;
-    info->buffer.memory   = V4L2_MEMORY_DMABUF;
+    info->buffer.memory   = info->mem_type;
     info->buffer.m.planes = info->planes;
     info->buffer.length   = info->format.fmt.pix_mp.num_planes;
     info->buffer.reserved = info->acquireFenceFd;
 
     for (i = 0; i < info->format.fmt.pix_mp.num_planes; i++) {
-        info->buffer.m.planes[i].m.fd = (int)info->addr[i];
+        if (info->buffer.memory == GSC_MEM_DMABUF)
+            info->buffer.m.planes[i].m.fd = (int)info->addr[i];
+        else
+            info->buffer.m.planes[i].m.userptr = (unsigned long)info->addr[i];
         info->buffer.m.planes[i].length    = plane_size[i];
         info->buffer.m.planes[i].bytesused = 0;
     }
@@ -1162,6 +1165,7 @@ done:
 int exynos_gsc_set_src_addr(
     void *handle,
     void *addr[3],
+    int mem_type,
     int acquireFenceFd)
 {
     struct GSC_HANDLE *gsc_handle;
@@ -1180,6 +1184,7 @@ int exynos_gsc_set_src_addr(
     gsc_handle->src.addr[1] = addr[1];
     gsc_handle->src.addr[2] = addr[2];
     gsc_handle->src.acquireFenceFd = acquireFenceFd;
+    gsc_handle->src.mem_type = mem_type;
 
     exynos_mutex_unlock(gsc_handle->op_mutex);
 
@@ -1191,6 +1196,7 @@ int exynos_gsc_set_src_addr(
 int exynos_gsc_set_dst_addr(
     void *handle,
     void *addr[3],
+    int mem_type,
     int acquireFenceFd)
 {
     struct GSC_HANDLE *gsc_handle;
@@ -1210,7 +1216,7 @@ int exynos_gsc_set_dst_addr(
     gsc_handle->dst.addr[1] = addr[1];
     gsc_handle->dst.addr[2] = addr[2];
     gsc_handle->dst.acquireFenceFd = acquireFenceFd;
-
+    gsc_handle->dst.mem_type = mem_type;
 
     exynos_mutex_unlock(gsc_handle->op_mutex);
 
@@ -2000,7 +2006,7 @@ static int exynos_gsc_m2m_stop(void *handle)
     /* src: clear_buf */
     req_buf.count  = 0;
     req_buf.type   = gsc_handle->src.buf_type;
-    req_buf.memory = V4L2_MEMORY_DMABUF;
+    req_buf.memory = gsc_handle->src.mem_type;
     if (exynos_v4l2_reqbufs(gsc_handle->gsc_fd, &req_buf) < 0) {
         ALOGE("%s::exynos_v4l2_reqbufs():src: fail", __func__);
         ret = -1;
@@ -2009,7 +2015,7 @@ static int exynos_gsc_m2m_stop(void *handle)
     /* dst: clear_buf */
     req_buf.count  = 0;
     req_buf.type   = gsc_handle->dst.buf_type;
-    req_buf.memory = V4L2_MEMORY_DMABUF;
+    req_buf.memory = gsc_handle->dst.mem_type;;
     if (exynos_v4l2_reqbufs(gsc_handle->gsc_fd, &req_buf) < 0) {
         ALOGE("%s::exynos_v4l2_reqbufs():dst: fail", __func__);
         ret = -1;
@@ -2094,7 +2100,7 @@ int exynos_gsc_m2m_run(void *handle,
     addr[0] = (void *)src_img->yaddr;
     addr[1] = (void *)src_img->uaddr;
     addr[2] = (void *)src_img->vaddr;
-    ret = exynos_gsc_set_src_addr(handle, addr, src_img->acquireFenceFd);
+    ret = exynos_gsc_set_src_addr(handle, addr, src_img->mem_type, src_img->acquireFenceFd);
     if (ret < 0) {
         ALOGE("%s::fail: exynos_gsc_set_src_addr[%x %x %x]", __func__,
             (unsigned int)addr[0], (unsigned int)addr[1], (unsigned int)addr[2]);
@@ -2104,7 +2110,7 @@ int exynos_gsc_m2m_run(void *handle,
     addr[0] = (void *)dst_img->yaddr;
     addr[1] = (void *)dst_img->uaddr;
     addr[2] = (void *)dst_img->vaddr;
-    ret = exynos_gsc_set_dst_addr(handle, addr, dst_img->acquireFenceFd);
+    ret = exynos_gsc_set_dst_addr(handle, addr, dst_img->mem_type, dst_img->acquireFenceFd);
     if (ret < 0) {
         ALOGE("%s::fail: exynos_gsc_set_dst_addr[%x %x %x]", __func__,
             (unsigned int)addr[0], (unsigned int)addr[1], (unsigned int)addr[2]);

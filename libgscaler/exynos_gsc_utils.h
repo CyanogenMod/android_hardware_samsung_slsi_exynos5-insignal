@@ -109,6 +109,7 @@ struct gsc_info {
     bool               stream_on;
 
     enum v4l2_buf_type buf_type;
+    enum v4l2_memory mem_type;
     struct v4l2_format format;
     struct v4l2_buffer buffer;
     bool               buffer_queued;

@@ -2205,6 +2205,7 @@ static ExynosVideoErrorType MFC_Encoder_ExtensionEnqueue_Inbuf(
         buf.m.planes[i].m.fd = (unsigned int)pFd[i];
         buf.m.planes[i].length = allocLen[i];
         buf.m.planes[i].bytesused = dataSize[i];
+        buf.m.planes[i].m.userptr = (unsigned long)pBuffer[i];
 
         /* Temporary storage for Dequeue */
         pCtx->pInbuf[buf.index].planes[i].addr = (unsigned long)pBuffer[i];

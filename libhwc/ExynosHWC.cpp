@@ -1030,6 +1030,7 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
     src_cfg.format = src_handle->format;
     src_cfg.drmMode = !!(src_handle->flags & GRALLOC_USAGE_PROTECTED);
     src_cfg.acquireFenceFd = layer.acquireFenceFd;
+    src_cfg.mem_type = GSC_MEM_DMABUF;
     layer.acquireFenceFd = -1;
 
     dst_cfg.x = 0;
@@ -1039,6 +1040,7 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
     dst_cfg.rot = layer.transform;
     dst_cfg.drmMode = src_cfg.drmMode;
     dst_cfg.format = dst_format;
+    dst_cfg.mem_type = GSC_MEM_DMABUF;
     dst_cfg.narrowRgb = !exynos5_format_is_rgb(src_handle->format);
     if (dst_cfg.drmMode)
         align_crop_and_center(dst_cfg.w, dst_cfg.h, sourceCrop,

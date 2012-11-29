@@ -20,6 +20,10 @@ else
 LOCAL_C_INCLUDES += $(TOP)/frameworks/native/include/media/openmax
 endif
 
+ifeq ($(BOARD_USE_USERPTR_CAMERA_INPUT), true)
+LOCAL_CFLGAS += USE_USERPTR_CAMERA_INPUT
+endif
+
 LOCAL_MODULE := libExynosVideoApi
 LOCAL_MODULE_TAGS := optional
 LOCAL_PRELINK_MODULE := false

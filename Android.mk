@@ -23,7 +23,6 @@ exynos5_dirs := \
 	libgscaler \
 	librotator \
 	libswconverter \
-	libhwjpeg \
 	libhwc \
 	mobicore \
 	libkeymaster \

@@ -21,7 +21,9 @@ namespace android {
 
 ANDROID_SINGLETON_STATIC_INSTANCE(ExynosHWCService);
 
-ExynosHWCService::ExynosHWCService()
+ExynosHWCService::ExynosHWCService() :
+    mHWCService(NULL),
+    mHWCCtx(NULL)
 {
    ALOGD_IF(HWC_SERVICE_DEBUG, "ExynosHWCService Constructor is called");
 }

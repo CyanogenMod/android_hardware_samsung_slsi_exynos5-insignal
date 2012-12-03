@@ -161,7 +161,15 @@ struct exynos5_hwc_composer_device_1_t {
     const void              *last_handles[NUM_HW_WINDOWS];
     exynos5_gsc_map_t       last_gsc_map[NUM_HW_WINDOWS];
 #ifdef HWC_SERVICES
+
+#define HDMI_PRESET_ERROR -1
+
     android::ExynosHWCService   *mHWCService;
+    int mHdmiPreset;
+    int mHdmiCurrentPreset;
+    bool mHdmiResolutionChanged;
+    bool mHdmiResolutionHandled;
+    int mS3DMode;
 #endif
     int force_mirror_mode;
 
@@ -180,4 +188,20 @@ struct exynos5_hwc_composer_device_1_t {
     int invalid_trigger;
 #endif
 };
+
+#if defined(HWC_SERVICES)
+enum {
+    S3D_MODE_DISABLED = 0,
+    S3D_MODE_READY,
+    S3D_MODE_RUNNING,
+    S3D_MODE_STOPPING,
+};
+
+enum {
+    S3D_FB = 0,
+    S3D_SBS,
+    S3D_TB,
+    S3D_NONE,
+};
+#endif
 #endif

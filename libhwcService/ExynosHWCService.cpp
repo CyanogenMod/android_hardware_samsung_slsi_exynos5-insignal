@@ -95,6 +95,57 @@ int ExynosHWCService::setForceGPU(unsigned int on)
 
 void ExynosHWCService::setHdmiResolution(int resolution, int s3dMode)
 {
+    if (resolution == 0)
+        resolution = mHWCCtx->mHdmiCurrentPreset;
+
+    if (s3dMode == S3D_NONE) {
+        mHWCCtx->mHdmiPreset = resolution;
+        mHWCCtx->mHdmiResolutionChanged = true;
+        mHWCCtx->procs->invalidate(mHWCCtx->procs);
+        return;
+    }
+
+    switch (resolution) {
+    case HDMI_720P_60:
+        resolution = S3D_720P_60_BASE + s3dMode;
+        break;
+    case HDMI_720P_59_94:
+        resolution = S3D_720P_59_94_BASE + s3dMode;
+        break;
+    case HDMI_720P_50:
+        resolution = S3D_720P_50_BASE + s3dMode;
+        break;
+    case HDMI_1080P_24:
+        resolution = S3D_1080P_24_BASE + s3dMode;
+        break;
+    case HDMI_1080P_23_98:
+        resolution = S3D_1080P_23_98_BASE + s3dMode;
+        break;
+    case HDMI_1080P_30:
+        resolution = S3D_1080P_30_BASE + s3dMode;
+        break;
+    case HDMI_1080I_60:
+        if (s3dMode != S3D_SBS)
+            return;
+        resolution = V4L2_DV_1080I60_SB_HALF;
+        break;
+    case HDMI_1080I_59_94:
+        if (s3dMode != S3D_SBS)
+            return;
+        resolution = V4L2_DV_1080I59_94_SB_HALF;
+        break;
+    case HDMI_1080P_60:
+        if (s3dMode != S3D_SBS && s3dMode != S3D_TB)
+            return;
+        resolution = S3D_1080P_60_BASE + s3dMode;
+        break;
+    default:
+        return;
+    }
+    mHWCCtx->mHdmiPreset = resolution;
+    mHWCCtx->mHdmiResolutionChanged = true;
+    mHWCCtx->mS3DMode = S3D_MODE_READY;
+    mHWCCtx->procs->invalidate(mHWCCtx->procs);
 }
 
 void ExynosHWCService::setHdmiCableStatus(int status)
@@ -154,6 +205,64 @@ void ExynosHWCService::setHdmiDRM(int drmMode)
 
 void ExynosHWCService::getHdmiResolution(uint32_t *width, uint32_t *height)
 {
+    switch (mHWCCtx->mHdmiCurrentPreset) {
+    case V4L2_DV_480P59_94:
+    case V4L2_DV_480P60:
+        *width = 640;
+        *height = 480;
+        break;
+    case V4L2_DV_576P50:
+        *width = 720;
+        *height = 576;
+        break;
+    case V4L2_DV_720P24:
+    case V4L2_DV_720P25:
+    case V4L2_DV_720P30:
+    case V4L2_DV_720P50:
+    case V4L2_DV_720P59_94:
+    case V4L2_DV_720P60:
+    case V4L2_DV_720P60_FP:
+    case V4L2_DV_720P60_SB_HALF:
+    case V4L2_DV_720P60_TB:
+    case V4L2_DV_720P59_94_FP:
+    case V4L2_DV_720P59_94_SB_HALF:
+    case V4L2_DV_720P59_94_TB:
+    case V4L2_DV_720P50_FP:
+    case V4L2_DV_720P50_SB_HALF:
+    case V4L2_DV_720P50_TB:
+        *width = 1280;
+        *height = 720;
+        break;
+    case V4L2_DV_1080I29_97:
+    case V4L2_DV_1080I30:
+    case V4L2_DV_1080I25:
+    case V4L2_DV_1080I50:
+    case V4L2_DV_1080I60:
+    case V4L2_DV_1080P24:
+    case V4L2_DV_1080P25:
+    case V4L2_DV_1080P30:
+    case V4L2_DV_1080P50:
+    case V4L2_DV_1080P60:
+    case V4L2_DV_1080I59_94:
+    case V4L2_DV_1080P59_94:
+    case V4L2_DV_1080P24_FP:
+    case V4L2_DV_1080P24_SB_HALF:
+    case V4L2_DV_1080P24_TB:
+    case V4L2_DV_1080P23_98_FP:
+    case V4L2_DV_1080P23_98_SB_HALF:
+    case V4L2_DV_1080P23_98_TB:
+    case V4L2_DV_1080I60_SB_HALF:
+    case V4L2_DV_1080I59_94_SB_HALF:
+    case V4L2_DV_1080I50_SB_HALF:
+    case V4L2_DV_1080P60_SB_HALF:
+    case V4L2_DV_1080P60_TB:
+    case V4L2_DV_1080P30_FP:
+    case V4L2_DV_1080P30_SB_HALF:
+    case V4L2_DV_1080P30_TB:
+        *width = 1920;
+        *height = 1080;
+        break;
+    }
 }
 
 uint32_t ExynosHWCService::getHdmiCableStatus()

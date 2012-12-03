@@ -223,6 +223,11 @@ public:
 
     virtual void getHdmiResolution(uint32_t *width, uint32_t *height)
     {
+        Parcel data, reply;
+        data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
+        remote()->transact(GET_HDMI_RESOLUTION, data, &reply);
+        *width = (uint32_t)reply.readInt32();
+        *height = (uint32_t)reply.readInt32();
     }
 
     virtual uint32_t getHdmiCableStatus()

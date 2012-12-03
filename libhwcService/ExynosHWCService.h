@@ -30,6 +30,40 @@ typedef struct exynos5_hwc_composer_device_1_t ExynosHWCCtx;
 
 namespace android {
 
+    enum {
+        HDMI_RESOLUTION_BASE = 0,
+        HDMI_480P_59_94,
+        HDMI_576P_50,
+        HDMI_720P_24,
+        HDMI_720P_25,
+        HDMI_720P_30,
+        HDMI_720P_50,
+        HDMI_720P_59_94,
+        HDMI_720P_60,
+        HDMI_1080I_29_97,
+        HDMI_1080I_30,
+        HDMI_1080I_25,
+        HDMI_1080I_50,
+        HDMI_1080I_60,
+        HDMI_1080P_24,
+        HDMI_1080P_25,
+        HDMI_1080P_30,
+        HDMI_1080P_50,
+        HDMI_1080P_60,
+        HDMI_480P_60,
+        HDMI_1080I_59_94,
+        HDMI_1080P_59_94,
+        HDMI_1080P_23_98,
+    };
+
+#define S3D_720P_60_BASE        22
+#define S3D_720P_59_94_BASE     25
+#define S3D_720P_50_BASE        28
+#define S3D_1080P_24_BASE       31
+#define S3D_1080P_23_98_BASE    34
+#define S3D_1080P_60_BASE       39
+#define S3D_1080P_30_BASE       42
+
 class ExynosHWCService
     : public BnExynosHWCService,  Singleton<ExynosHWCService> {
 

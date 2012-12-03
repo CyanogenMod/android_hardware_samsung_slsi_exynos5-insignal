@@ -1631,7 +1631,7 @@ static ExynosVideoBuffer *MFC_Decoder_Dequeue_Outbuf(void *pHandle)
     ExynosVideoBuffer     *pOutbuf = NULL;
 
     struct v4l2_buffer buf;
-    int value;
+    int value = 0, state = 0;
 
     if (pCtx == NULL) {
         ALOGE("%s: Video context info must be supplied", __func__);
@@ -1677,7 +1677,11 @@ static ExynosVideoBuffer *MFC_Decoder_Dequeue_Outbuf(void *pHandle)
         pOutbuf->displayStatus = VIDEO_FRAME_STATUS_DISPLAY_ONLY;
             break;
     case 3:
-        pOutbuf->displayStatus = VIDEO_FRAME_STATUS_CHANGE_RESOL;
+        exynos_v4l2_g_ctrl(pCtx->hDec, V4L2_CID_MPEG_MFC51_VIDEO_CHECK_STATE, &state);
+        if (state == 1) /* Resolution is changed */
+            pOutbuf->displayStatus = VIDEO_FRAME_STATUS_CHANGE_RESOL;
+        else            /* Decoding is finished */
+            pOutbuf->displayStatus = VIDEO_FRAME_STATUS_DECODING_FINISHED;
         break;
     default:
         pOutbuf->displayStatus = VIDEO_FRAME_STATUS_UNKNOWN;

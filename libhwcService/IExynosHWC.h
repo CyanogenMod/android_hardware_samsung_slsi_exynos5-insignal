@@ -47,6 +47,31 @@ public:
     virtual int setDispOrientation(unsigned int transform) = 0;
     virtual int setProtectionMode(unsigned int mode) = 0;
     virtual int setExternalDispLayerNum(unsigned int num) = 0;
+
+    virtual void setHdmiResolution(int resolution, int s3dMode) = 0;
+    virtual void setHdmiCableStatus(int status) = 0;
+    virtual void setHdmiMode(int mode) = 0;
+    virtual void setHdmiHdcp(int status) = 0;
+    virtual void setHdmiDRM(bool status) = 0;
+    virtual void setHdmiHwcLayer(uint32_t hwcLayer) = 0;
+    virtual void setHdmiEnable(uint32_t enable) = 0;
+    virtual void setHdmiLayerEnable(uint32_t hdmiLayer) = 0;
+    virtual void setHdmiLayerDisable(uint32_t hdmiLayer) = 0;
+    /*
+     * These functions may not be necessary
+     */
+    /* GPU does rotation now in normal scenarios */
+    virtual void setHdmiRotate(int rotVal, uint32_t hwcLayer) = 0;
+    /* We don't use writeback anymore */
+    virtual void setHdmiPath(int path) = 0;
+    /* Obsoleted by setProtectionMode */
+    virtual void setHdmiDRM(int drmMode) = 0;
+    /*
+     * End of possibly unnecessary functions
+     */
+    virtual void getHdmiResolution(uint32_t *width, uint32_t *height) = 0;
+    virtual uint32_t getHdmiCableStatus() = 0;
+    virtual uint32_t getHdmiAudioChannel() = 0;
 };
 
 /* Native Interface */

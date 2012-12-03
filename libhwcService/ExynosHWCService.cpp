@@ -81,6 +81,68 @@ int ExynosHWCService::setExternalDispLayerNum(unsigned int num)
     return NO_ERROR;
 }
 
+void ExynosHWCService::setHdmiResolution(int resolution, int s3dMode)
+{
+}
+
+void ExynosHWCService::setHdmiCableStatus(int status)
+{
+}
+
+void ExynosHWCService::setHdmiMode(int mode)
+{
+}
+
+void ExynosHWCService::setHdmiHdcp(int status)
+{
+}
+
+void ExynosHWCService::setHdmiDRM(bool status)
+{
+}
+
+void ExynosHWCService::setHdmiHwcLayer(uint32_t hwcLayer)
+{
+}
+
+void ExynosHWCService::setHdmiEnable(uint32_t enable)
+{
+}
+
+void ExynosHWCService::setHdmiLayerEnable(uint32_t hdmiLayer)
+{
+}
+
+void ExynosHWCService::setHdmiLayerDisable(uint32_t hdmiLayer)
+{
+}
+
+void ExynosHWCService::setHdmiRotate(int rotVal, uint32_t hwcLayer)
+{
+}
+
+void ExynosHWCService::setHdmiPath(int path)
+{
+}
+
+void ExynosHWCService::setHdmiDRM(int drmMode)
+{
+}
+
+void ExynosHWCService::getHdmiResolution(uint32_t *width, uint32_t *height)
+{
+}
+
+uint32_t ExynosHWCService::getHdmiCableStatus()
+{
+    return 0;
+}
+
+uint32_t ExynosHWCService::getHdmiAudioChannel()
+{
+    return 0;
+}
+
 int ExynosHWCService::createServiceLocked()
 {
     ALOGD_IF(HWC_SERVICE_DEBUG, "%s::", __func__);

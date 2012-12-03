@@ -37,6 +37,20 @@ enum {
     SET_DISPLAY_ORIENTATION,
     SET_PROTECTION_MODE,
     SET_EXTERNAL_DISP_LAY_NUM,
+    SET_HDMI_CABLE_STATUS,
+    SET_HDMI_MODE,
+    SET_HDMI_RESOLUTION,
+    SET_HDMI_HDCP,
+    SET_HDMI_HWC_LAYER,
+    SET_HDMI_ENABLE,
+    SET_HDMI_LAYER_ENABLE,
+    SET_HDMI_LAYER_DISABLE,
+    SET_HDMI_ROTATE,
+    SET_HDMI_PATH,
+    SET_HDMI_DRM,
+    GET_HDMI_CABLE_STATUS,
+    GET_HDMI_RESOLUTION,
+    GET_HDMI_AUDIO_CHANNEL,
 };
 
 class BpExynosHWCService : public BpInterface<IExynosHWCService> {
@@ -125,6 +139,68 @@ public:
         result = reply.readInt32();
         return result;
     }
+
+    virtual void setHdmiResolution(int resolution, int s3dMode)
+    {
+    }
+
+    virtual void setHdmiCableStatus(int status)
+    {
+    }
+
+    virtual void setHdmiMode(int mode)
+    {
+    }
+
+    virtual void setHdmiHdcp(int status)
+    {
+    }
+
+    virtual void setHdmiDRM(bool status)
+    {
+    }
+
+    virtual void setHdmiHwcLayer(uint32_t hwcLayer)
+    {
+    }
+
+    virtual void setHdmiEnable(uint32_t enable)
+    {
+    }
+
+    virtual void setHdmiLayerEnable(uint32_t hdmiLayer)
+    {
+    }
+
+    virtual void setHdmiLayerDisable(uint32_t hdmiLayer)
+    {
+    }
+
+    virtual void setHdmiRotate(int rotVal, uint32_t hwcLayer)
+    {
+    }
+
+    virtual void setHdmiPath(int path)
+    {
+    }
+
+    virtual void setHdmiDRM(int drmMode)
+    {
+    }
+
+    virtual void getHdmiResolution(uint32_t *width, uint32_t *height)
+    {
+    }
+
+    virtual uint32_t getHdmiCableStatus()
+    {
+        return 0;
+    }
+
+    virtual uint32_t getHdmiAudioChannel()
+    {
+        return 0;
+    }
 };
 
 IMPLEMENT_META_INTERFACE(ExynosHWCService, "android.hal.ExynosHWCService");
@@ -189,6 +265,14 @@ status_t BnExynosHWCService::onTransact(
             reply->writeInt32(res);
             return NO_ERROR;
         } break;
+        case SET_HDMI_RESOLUTION: {
+            CHECK_INTERFACE(IExynosHWCService, data, reply);
+            int resolution = data.readInt32();
+            int s3dMode = data.readInt32();
+            setHdmiResolution(resolution, s3dMode);
+            return NO_ERROR;
+        }
+
         default:
             return BBinder::onTransact(code, data, reply, flags);
     }

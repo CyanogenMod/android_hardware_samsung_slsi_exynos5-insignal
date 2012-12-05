@@ -77,6 +77,17 @@ class ExynosHWCService;
 }
 #endif
 
+#ifdef HWC_DYNAMIC_RECOMPOSITION
+#define HWC_FIMD_BW_TH  1.5   /* valid range 1 to 5 */
+#define HWC_FPS_TH          3    /* valid range 1 to 60 */
+#define VSYNC_INTERVAL (1000000000.0 / 60)
+typedef enum _COMPOS_MODE_SWITCH {
+    NO_MODE_SWITCH,
+    HWC_2_GLES = 1,
+    GLES_2_HWC,
+} HWC_COMPOS_MODE_SWITCH;
+#endif
+
 struct exynos5_hwc_composer_device_1_t;
 
 struct exynos5_gsc_map_t {
@@ -153,5 +164,20 @@ struct exynos5_hwc_composer_device_1_t {
     android::ExynosHWCService   *mHWCService;
 #endif
     int force_mirror_mode;
+
+#ifdef HWC_DYNAMIC_RECOMPOSITION
+    int VsyncInterruptStatus;
+    int CompModeSwitch;
+    uint64_t LastVsyncTimeStamp;
+    uint64_t LastModeSwitchTimeStamp;
+    int invalidateStatus;
+    int needInvalidate;
+    int needInvalidForVsync;
+    int totPixels;
+    int setCallCnt;
+    pthread_t   vsync_stat_thread;
+    int vsyn_event_cnt;
+    int invalid_trigger;
+#endif
 };
 #endif

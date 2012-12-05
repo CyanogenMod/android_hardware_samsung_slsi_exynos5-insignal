@@ -724,8 +724,14 @@ static int exynos5_prepare_fimd(exynos5_hwc_composer_device_1_t *pdev,
             continue;
         }
 
+#ifndef HWC_DYNAMIC_RECOMPOSITION
         if (exynos5_supports_overlay(contents->hwLayers[i], i, pdev) &&
                 !force_fb) {
+#else
+        pdev->totPixels += WIDTH(layer.displayFrame) * HEIGHT(layer.displayFrame);
+        if (exynos5_supports_overlay(contents->hwLayers[i], i, pdev) &&
+                !force_fb && (pdev->CompModeSwitch != HWC_2_GLES)) {
+#endif
             ALOGV("\tlayer %u: overlay supported", i);
             layer.compositionType = HWC_OVERLAY;
             dump_layer(&contents->hwLayers[i]);
@@ -982,6 +988,11 @@ static int exynos5_prepare(hwc_composer_device_1_t *dev,
             (exynos5_hwc_composer_device_1_t *)dev;
     hwc_display_contents_1_t *fimd_contents = displays[HWC_DISPLAY_PRIMARY];
     hwc_display_contents_1_t *hdmi_contents = displays[HWC_DISPLAY_EXTERNAL];
+
+#ifdef HWC_DYNAMIC_RECOMPOSITION
+    pdev->invalidateStatus = 0;
+    pdev->totPixels = 0;
+#endif
 
     if (pdev->hdmi_hpd) {
         hdmi_enable(pdev);
@@ -1534,6 +1545,10 @@ static int exynos5_set(struct hwc_composer_device_1 *dev,
     hwc_display_contents_1_t *hdmi_contents = displays[HWC_DISPLAY_EXTERNAL];
     int fimd_err = 0, hdmi_err = 0;
 
+#ifdef HWC_DYNAMIC_RECOMPOSITION
+    pdev->setCallCnt++;
+#endif
+
     if (fimd_contents)
         fimd_err = exynos5_set_fimd(pdev, fimd_contents);
 
@@ -1545,6 +1560,90 @@ static int exynos5_set(struct hwc_composer_device_1 *dev,
 
     return hdmi_err;
 }
+
+#ifdef HWC_DYNAMIC_RECOMPOSITION
+int exynos_getCompModeSwitch(struct exynos5_hwc_composer_device_1_t *pdev)
+{
+    unsigned int tot_win_size = 0;
+    unsigned int lcd_size = pdev->xres * pdev->yres;
+
+    /* initialize the Timestamps */
+    if (!pdev->LastModeSwitchTimeStamp) {
+        pdev->LastModeSwitchTimeStamp = pdev->LastVsyncTimeStamp;
+        pdev->CompModeSwitch = NO_MODE_SWITCH;
+        return 0;
+    }
+
+    /* If video layer is there, skip the mode switch */
+    for (size_t i = 0; i < NUM_HW_WINDOWS; i++) {
+        if (pdev->last_gsc_map[i].mode != exynos5_gsc_map_t::GSC_NONE) {
+            if (pdev->CompModeSwitch != HWC_2_GLES) {
+                return 0;
+            } else {
+                pdev->CompModeSwitch = GLES_2_HWC;
+                return GLES_2_HWC;
+            }
+        }
+    }
+
+    /* Mode Switch is not required if total pixels are not more than the threshold */
+    if (pdev->totPixels <= lcd_size * HWC_FIMD_BW_TH) {
+        if (pdev->CompModeSwitch != HWC_2_GLES) {
+            return 0;
+        } else {
+            pdev->CompModeSwitch = GLES_2_HWC;
+            return GLES_2_HWC;
+        }
+    }
+
+    /*
+     * if VSYNC interrupt is disabled, there won't be any screen update in near future.
+     * switch the mode to GLES
+     */
+    if (pdev->invalid_trigger) {
+        if (!pdev->VsyncInterruptStatus) {
+            if (pdev->CompModeSwitch != HWC_2_GLES) {
+                pdev->CompModeSwitch = HWC_2_GLES;
+                return HWC_2_GLES;
+            }
+        }
+        return 0;
+    }
+
+    /*
+     * There will be at least one composition call per one minute (because of time update)
+     * To minimize the analysis overhead, just analyze it once in a second
+     */
+    if ((pdev->LastVsyncTimeStamp -pdev->LastModeSwitchTimeStamp) <  (VSYNC_INTERVAL * 60)) {
+        return 0;
+    }
+    pdev->LastModeSwitchTimeStamp = pdev->LastVsyncTimeStamp;
+
+    /*
+     * FPS estimation.
+     * If FPS is lower than HWC_FPS_TH, try to swiych the mode to GLES
+     */
+    if (pdev->setCallCnt < HWC_FPS_TH) {
+        pdev->setCallCnt = 0;
+        if (pdev->CompModeSwitch != HWC_2_GLES) {
+            pdev->CompModeSwitch = HWC_2_GLES;
+            return HWC_2_GLES;
+        } else {
+            return 0;
+        }
+    } else {
+        pdev->setCallCnt = 0;
+         if (pdev->CompModeSwitch == HWC_2_GLES) {
+            pdev->CompModeSwitch = GLES_2_HWC;
+            return GLES_2_HWC;
+        } else {
+            return 0;
+        }
+    }
+
+    return 0;
+}
+#endif
 
 static void exynos5_registerProcs(struct hwc_composer_device_1* dev,
         hwc_procs_t const* procs)
@@ -1584,6 +1683,10 @@ static int exynos5_eventControl(struct hwc_composer_device_1 *dev, int dpy,
     switch (event) {
     case HWC_EVENT_VSYNC:
         __u32 val = !!enabled;
+#ifdef HWC_DYNAMIC_RECOMPOSITION
+        pdev->VsyncInterruptStatus = val;
+        pdev->vsyn_event_cnt++;
+#endif
         int err = ioctl(pdev->fd, S3CFB_SET_VSYNC_INT, &val);
         if (err < 0) {
             ALOGE("vsync ioctl failed");
@@ -1655,7 +1758,41 @@ static void handle_vsync_event(struct exynos5_hwc_composer_device_1_t *pdev)
     uint64_t timestamp = strtoull(buf, NULL, 0);
     if (!errno)
         pdev->procs->vsync(pdev->procs, 0, timestamp);
+#ifdef HWC_DYNAMIC_RECOMPOSITION
+    if (!errno) {
+        pdev->LastVsyncTimeStamp = timestamp;
+        pdev->needInvalidate = exynos_getCompModeSwitch(pdev);
+    }
+#endif
 }
+
+#ifdef HWC_DYNAMIC_RECOMPOSITION
+static void *hwc_vsync_stat_thread(void *data)
+{
+    struct exynos5_hwc_composer_device_1_t *pdev =
+            (struct exynos5_hwc_composer_device_1_t *)data;
+    int event_cnt = 0;
+
+    while (true) {
+        event_cnt = pdev->vsyn_event_cnt;
+        /*
+         * If VSYNC is diabled for more than 500ms, favor the 3D composition mode.
+         * If all other conditions are met, mode will be switched to 3D composition.
+         */
+        usleep(500000);
+        if ( (!pdev->VsyncInterruptStatus) && (event_cnt == pdev->vsyn_event_cnt)) {
+            pdev->invalid_trigger = 1;
+            if (exynos_getCompModeSwitch(pdev) == HWC_2_GLES) {
+                pdev->invalid_trigger = 0;
+                if ((pdev->procs) && (pdev->procs->invalidate))
+                    pdev->procs->invalidate(pdev->procs);
+            }
+            pdev->invalid_trigger = 0;
+        }
+    }
+    return NULL;
+}
+#endif
 
 static void *hwc_vsync_thread(void *data)
 {
@@ -1703,6 +1840,15 @@ static void *hwc_vsync_thread(void *data)
                 break;
             ALOGE("error in vsync thread: %s", strerror(errno));
         }
+#ifdef HWC_DYNAMIC_RECOMPOSITION
+    if ((pdev->needInvalidate || pdev->needInvalidForVsync) && (!pdev->invalidateStatus)) {
+        pdev->needInvalidate = 0;
+        pdev->needInvalidForVsync = 0;
+        pdev->invalidateStatus = 1;
+        if ((pdev->procs) && (pdev->procs->invalidate))
+            pdev->procs->invalidate(pdev->procs);
+    }
+#endif
     }
 
     return NULL;
@@ -2061,6 +2207,15 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
     dev->force_gpu = atoi(value);
 
     dev->force_mirror_mode = 0;
+
+#ifdef HWC_DYNAMIC_RECOMPOSITION
+    ret = pthread_create(&dev->vsync_stat_thread, NULL, hwc_vsync_stat_thread, dev);
+    if (ret) {
+        ALOGE("failed to start vsync_stat thread: %s", strerror(ret));
+        ret = -ret;
+        goto err_vsync;
+    }
+#endif
 
     return 0;
 

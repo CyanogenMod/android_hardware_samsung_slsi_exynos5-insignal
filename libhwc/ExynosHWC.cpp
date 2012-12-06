@@ -1507,6 +1507,24 @@ static void exynos5_config_handle(private_handle_t *handle,
         h -= crop;
     }
 
+#ifdef DIRECT_FB_SRC_BUF_WA
+    /*
+     * This patch is required to solve the fb driver PAGE fault issue.
+     * there is a corner case in FIMD direct FB mechanism.
+     * FIMD dma_end address will be out of the mapped region for the following scenario.
+     * When ((src_buf_left  != 0) || (disp_left < 0))  &&
+     * ((src_buf_top + (disp_top < 0 ? disp_top : 0 ) + disp_h) == src_vstride)
+     * This patch is a workaround to resolve the issue.
+     */
+    int stride_in_bytes = handle->stride * bpp / 8;
+    int yoffset_in_lines;
+    if (offset % stride_in_bytes) { // ((src_buf_left  != 0) || (disp_left != 0))
+        yoffset_in_lines = offset / stride_in_bytes;
+        if ((yoffset_in_lines + h + 1) > handle->vstride)
+            h = handle->vstride - yoffset_in_lines - 1;
+    }
+#endif
+
     cfg.state = cfg.S3C_FB_WIN_STATE_BUFFER;
     cfg.fd = handle->fd;
     cfg.x = x;

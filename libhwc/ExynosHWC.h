@@ -73,6 +73,7 @@ const size_t NUM_GSC_UNITS = sizeof(AVAILABLE_GSC_UNITS) /
         sizeof(AVAILABLE_GSC_UNITS[0]);
 const size_t BURSTLEN_BYTES = 16 * 8;
 const size_t NUM_HDMI_BUFFERS = 3;
+#define DIRECT_FB_SRC_BUF_WA
 
 #ifdef HWC_SERVICES
 #include "../libhwcService/ExynosHWCService.h"

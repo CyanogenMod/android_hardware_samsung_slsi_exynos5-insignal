@@ -64,7 +64,11 @@ const size_t GSC_H_ALIGNMENT = 16;
 const size_t GSC_DST_H_ALIGNMENT_RGB888 = 1;
 const size_t FIMD_GSC_IDX = 0;
 const size_t HDMI_GSC_IDX = 1;
-const int AVAILABLE_GSC_UNITS[] = { 0, 3 };
+const size_t FIMD_GSC_SBS_IDX = 2;
+const size_t FIMD_GSC_TB_IDX = 3;
+const size_t HDMI_GSC_SBS_IDX = 4;
+const size_t HDMI_GSC_TB_IDX = 5;
+const int AVAILABLE_GSC_UNITS[] = { 0, 3, 0, 0, 3, 3 };
 const size_t NUM_GSC_UNITS = sizeof(AVAILABLE_GSC_UNITS) /
         sizeof(AVAILABLE_GSC_UNITS[0]);
 const size_t BURSTLEN_BYTES = 16 * 8;
@@ -162,6 +166,8 @@ struct exynos5_hwc_composer_device_1_t {
     exynos5_gsc_map_t       last_gsc_map[NUM_HW_WINDOWS];
 #ifdef HWC_SERVICES
 
+#define S3D_ERROR -1
+#define HDMI_PRESET_DEFAULT V4L2_DV_1080P60
 #define HDMI_PRESET_ERROR -1
 
     android::ExynosHWCService   *mHWCService;

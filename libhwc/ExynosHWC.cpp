@@ -665,6 +665,24 @@ int hdmi_3d_to_2d(int preset)
         return HDMI_PRESET_ERROR;
     }
 }
+
+int hdmi_S3D_format(int preset)
+{
+    switch (preset) {
+    case V4L2_DV_720P60_SB_HALF:
+    case V4L2_DV_720P50_SB_HALF:
+    case V4L2_DV_1080P60_SB_HALF:
+    case V4L2_DV_1080P30_SB_HALF:
+        return S3D_SBS;
+    case V4L2_DV_720P60_TB:
+    case V4L2_DV_720P50_TB:
+    case V4L2_DV_1080P60_TB:
+    case V4L2_DV_1080P30_TB:
+        return S3D_TB;
+    default:
+        return S3D_ERROR;
+    }
+}
 #endif
 
 bool exynos5_is_offscreen(hwc_layer_1_t &layer,
@@ -991,7 +1009,7 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
              */
 #if defined(GSC_VIDEO)
             if (!pdev->force_mirror_mode && ((h->flags & GRALLOC_USAGE_PROTECTED) ||
-                ((int)get_yuv_planes(HAL_PIXEL_FORMAT_2_V4L2_PIX(h->format)) >= 0))) {
+                (h->flags & GRALLOC_USAGE_EXTERNAL_DISP))) {
 #else
             if (h->flags & GRALLOC_USAGE_PROTECTED) {
 #endif
@@ -1002,13 +1020,20 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                     if (h->flags & GRALLOC_USAGE_EXTERNAL_DISP) {
                         struct v4l2_rect dest_rect;
 
-                        hdmi_cal_dest_rect(WIDTH(layer.sourceCrop), HEIGHT(layer.sourceCrop),
-                                pdev->hdmi_w, pdev->hdmi_h, &dest_rect);
+                        if (pdev->mS3DMode == S3D_MODE_DISABLED) {
+                            hdmi_cal_dest_rect(WIDTH(layer.sourceCrop), HEIGHT(layer.sourceCrop),
+                                    pdev->hdmi_w, pdev->hdmi_h, &dest_rect);
 
-                        layer.displayFrame.left = dest_rect.left;
-                        layer.displayFrame.top = dest_rect.top;
-                        layer.displayFrame.right = dest_rect.width + dest_rect.left;
-                        layer.displayFrame.bottom = dest_rect.height + dest_rect.top;
+                            layer.displayFrame.left = dest_rect.left;
+                            layer.displayFrame.top = dest_rect.top;
+                            layer.displayFrame.right = dest_rect.width + dest_rect.left;
+                            layer.displayFrame.bottom = dest_rect.height + dest_rect.top;
+                        } else {
+                            layer.displayFrame.left = 0;
+                            layer.displayFrame.top = 0;
+                            layer.displayFrame.right = pdev->hdmi_w;
+                            layer.displayFrame.bottom = pdev->hdmi_h;
+                        }
                         for (int j = 0; j < contents->numHwLayers; j++) {
                             if (j == i)
                                 continue;
@@ -1096,6 +1121,10 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
     src_cfg.h = HEIGHT(layer.sourceCrop);
     src_cfg.fh = src_handle->vstride;
     src_cfg.yaddr = src_handle->fd;
+    if (gsc_idx == FIMD_GSC_SBS_IDX || gsc_idx == HDMI_GSC_SBS_IDX)
+        src_cfg.w /= 2;
+    if (gsc_idx == FIMD_GSC_TB_IDX || gsc_idx == HDMI_GSC_TB_IDX)
+        src_cfg.h /= 2;
     if (exynos5_format_is_ycrcb(src_handle->format)) {
         src_cfg.uaddr = src_handle->fd2;
         src_cfg.vaddr = src_handle->fd1;
@@ -1376,6 +1405,15 @@ static int exynos5_post_fimd(exynos5_hwc_composer_device_1_t *pdev,
 
                 hwc_rect_t sourceCrop = { 0, 0,
                         WIDTH(layer.displayFrame), HEIGHT(layer.displayFrame) };
+#if defined(HWC_SERVICES)
+                if (pdev->mS3DMode == S3D_MODE_READY || pdev->mS3DMode == S3D_MODE_RUNNING) {
+                    int S3DFormat = hdmi_S3D_format(pdev->mHdmiPreset);
+                    if (S3DFormat == S3D_SBS)
+                        gsc_idx = FIMD_GSC_SBS_IDX;
+                    else if (S3DFormat == S3D_TB)
+                        gsc_idx = FIMD_GSC_TB_IDX;
+                }
+#endif
                 int err = exynos5_config_gsc_m2m(layer, pdev->alloc_device, &gsc,
                         gsc_idx, dst_format, &sourceCrop);
                 if (err < 0) {
@@ -1483,6 +1521,9 @@ static int exynos5_set_fimd(exynos5_hwc_composer_device_1_t *pdev,
     if (err)
         fence = exynos5_clear_fimd(pdev);
 
+#if defined(HWC_SERVICES)
+    bool GSCLayer = false;
+#endif
     for (size_t i = 0; i < NUM_HW_WINDOWS; i++) {
         if (pdev->bufs.overlay_map[i] != -1) {
             hwc_layer_1_t &layer =
@@ -1495,11 +1536,20 @@ static int exynos5_set_fimd(exynos5_hwc_composer_device_1_t *pdev,
                 exynos5_gsc_data_t &gsc = pdev->gsc[gsc_idx];
                 gsc.dst_buf_fence[gsc.current_buf] = dup_fd;
                 gsc.current_buf = (gsc.current_buf + 1) % NUM_GSC_DST_BUFS;
+#if defined(HWC_SERVICES)
+                GSCLayer = true;
+                if (!pdev->hdmi_hpd && pdev->mS3DMode == S3D_MODE_READY)
+                    pdev->mS3DMode = S3D_MODE_RUNNING;
+#endif
             } else {
                 layer.releaseFenceFd = dup_fd;
             }
         }
     }
+#if defined(HWC_SERVICES)
+    if (!pdev->hdmi_hpd && pdev->mS3DMode == S3D_MODE_RUNNING && !GSCLayer)
+        pdev->mS3DMode = S3D_MODE_DISABLED;
+#endif
     close(fence);
 
     return err;
@@ -1531,23 +1581,36 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
         }
 
         if (layer.compositionType == HWC_OVERLAY) {
-             if (!layer.handle)
+            if (!layer.handle)
                 continue;
 
             ALOGV("HDMI video layer:");
             dump_layer(&layer);
 
+            int gsc_idx = HDMI_GSC_IDX;
 #if defined(HWC_SERVICES)
-            if (pdev->mS3DMode == S3D_MODE_READY && pdev->mHdmiResolutionChanged) {
+            bool changedPreset = false;
+            if (pdev->mS3DMode != S3D_MODE_DISABLED && pdev->mHdmiResolutionChanged) {
                 if (hdmi_is_preset_supported(pdev, pdev->mHdmiPreset)) {
                     pdev->mS3DMode = S3D_MODE_RUNNING;
                     hdmi_set_preset(pdev, pdev->mHdmiPreset);
+                    changedPreset = true;
+                } else {
+                    pdev->mS3DMode = S3D_MODE_RUNNING;
+                    pdev->mHdmiResolutionChanged = false;
+                    pdev->mHdmiResolutionHandled = true;
+                    int S3DFormat = hdmi_S3D_format(pdev->mHdmiPreset);
+                    if (S3DFormat == S3D_SBS)
+                        gsc_idx = HDMI_GSC_SBS_IDX;
+                    else if (S3DFormat == S3D_TB)
+                        gsc_idx = HDMI_GSC_TB_IDX;
                 }
             }
 #endif
 
             exynos5_gsc_data_t &gsc = pdev->gsc[HDMI_GSC_IDX];
-            int ret = exynos5_config_gsc_m2m(layer, pdev->alloc_device, &gsc, 1,
+            int ret = exynos5_config_gsc_m2m(layer, pdev->alloc_device, &gsc,
+                                             gsc_idx,
                                              HAL_PIXEL_FORMAT_RGBX_8888, NULL);
             if (ret < 0) {
                 ALOGE("failed to configure gscaler for video layer");
@@ -1586,7 +1649,7 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
         hdmi_disable_layer(pdev, pdev->hdmi_layers[0]);
         exynos5_cleanup_gsc_m2m(pdev, HDMI_GSC_IDX);
 #if defined(HWC_SERVICES)
-        if (pdev->mS3DMode == S3D_MODE_RUNNING) {
+        if (pdev->mS3DMode == S3D_MODE_RUNNING && contents->numHwLayers > 1) {
             int preset = hdmi_3d_to_2d(pdev->mHdmiCurrentPreset);
             if (hdmi_is_preset_supported(pdev, preset)) {
                 hdmi_set_preset(pdev, preset);
@@ -1594,6 +1657,9 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                 pdev->mHdmiPreset = preset;
                 if (pdev->procs)
                     pdev->procs->invalidate(pdev->procs);
+            } else {
+                pdev->mS3DMode = S3D_MODE_DISABLED;
+                pdev->mHdmiPreset = pdev->mHdmiCurrentPreset;
             }
         }
 #endif
@@ -1641,7 +1707,7 @@ static int exynos5_set(struct hwc_composer_device_1 *dev,
             pdev->procs->invalidate(pdev->procs);
         }
     }
-    if (pdev->mHdmiResolutionChanged) {
+    if (pdev->hdmi_hpd && pdev->mHdmiResolutionChanged) {
         if (pdev->mS3DMode == S3D_MODE_DISABLED && hdmi_is_preset_supported(pdev, pdev->mHdmiPreset))
             hdmi_set_preset(pdev, pdev->mHdmiPreset);
     }
@@ -2290,6 +2356,8 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
     dev->mHdmiResolutionChanged = false;
     dev->mHdmiResolutionHandled = true;
     dev->mS3DMode = S3D_MODE_DISABLED;
+    dev->mHdmiPreset = HDMI_PRESET_DEFAULT;
+    dev->mHdmiCurrentPreset = HDMI_PRESET_DEFAULT;
 #endif
 
     ret = pthread_create(&dev->vsync_thread, NULL, hwc_vsync_thread, dev);

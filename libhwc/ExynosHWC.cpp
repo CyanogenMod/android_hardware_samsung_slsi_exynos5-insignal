@@ -1924,10 +1924,27 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
         goto err_ioctl;
     }
 
+    if (info.reserved[0] == 0 && info.reserved[1] == 0) {
+        /* save physical lcd width, height to reserved[] */
+        info.reserved[0] = info.xres;
+        info.reserved[1] = info.yres;
+
+        if (ioctl(dev->fd, FBIOPUT_VSCREENINFO, &info) == -1) {
+            ALOGE("FBIOPUT_VSCREENINFO ioctl failed: %s", strerror(errno));
+            ret = -errno;
+            goto err_ioctl;
+        }
+    }
+
+    /* restore physical lcd width, height from reserved[] */
+    int lcd_xres, lcd_yres;
+    lcd_xres = info.reserved[0];
+    lcd_yres = info.reserved[1];
+
     refreshRate = 1000000000000LLU /
         (
-         uint64_t( info.upper_margin + info.lower_margin + info.yres )
-         * ( info.left_margin  + info.right_margin + info.xres )
+         uint64_t( info.upper_margin + info.lower_margin + lcd_yres )
+         * ( info.left_margin  + info.right_margin + lcd_xres )
          * info.pixclock
         );
 
@@ -1936,10 +1953,10 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
         refreshRate = 60;
     }
 
-    dev->xres = info.xres;
-    dev->yres = info.yres;
-    dev->xdpi = 1000 * (info.xres * 25.4f) / info.width;
-    dev->ydpi = 1000 * (info.yres * 25.4f) / info.height;
+    dev->xres = lcd_xres;
+    dev->yres = lcd_yres;
+    dev->xdpi = 1000 * (lcd_xres * 25.4f) / info.width;
+    dev->ydpi = 1000 * (lcd_yres * 25.4f) / info.height;
     dev->vsync_period  = 1000000000 / refreshRate;
 
     ALOGV("using\n"

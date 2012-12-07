@@ -1317,6 +1317,9 @@ static int exynos5_post_fimd(exynos5_hwc_composer_device_1_t *pdev,
                         layer.displayFrame, layer.blending, fence, config[i],
                         pdev);
             } else {
+#ifdef WAIT_FOR_RENDER_FINISH
+                ExynosWaitForRenderFinish(pdev->gralloc_module, &layer.handle, 1);
+#endif
                 exynos5_config_overlay(&layer, config[i], pdev);
             }
         }

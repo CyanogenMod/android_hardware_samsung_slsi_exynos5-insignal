@@ -81,6 +81,14 @@ int ExynosHWCService::setExternalDispLayerNum(unsigned int num)
     return NO_ERROR;
 }
 
+int ExynosHWCService::setForceGPU(unsigned int on)
+{
+    ALOGD_IF(HWC_SERVICE_DEBUG, "%s::on/off=%d", __func__, on);
+    mHWCCtx->force_gpu = on;
+    mHWCCtx->procs->invalidate(mHWCCtx->procs);
+    return NO_ERROR;
+}
+
 void ExynosHWCService::setHdmiResolution(int resolution, int s3dMode)
 {
 }

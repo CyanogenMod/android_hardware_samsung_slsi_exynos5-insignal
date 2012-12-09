@@ -37,6 +37,7 @@ enum {
     SET_DISPLAY_ORIENTATION,
     SET_PROTECTION_MODE,
     SET_EXTERNAL_DISP_LAY_NUM,
+    SET_FORCE_GPU,
     SET_HDMI_CABLE_STATUS,
     SET_HDMI_MODE,
     SET_HDMI_RESOLUTION,
@@ -136,6 +137,16 @@ public:
         data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
         data.writeInt32(num);
         int result = remote()->transact(SET_EXTERNAL_DISP_LAY_NUM, data, &reply);
+        result = reply.readInt32();
+        return result;
+    }
+
+    virtual int setForceGPU(unsigned int on)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
+        data.writeInt32(on);
+        int result = remote()->transact(SET_FORCE_GPU, data, &reply);
         result = reply.readInt32();
         return result;
     }
@@ -262,6 +273,13 @@ status_t BnExynosHWCService::onTransact(
             CHECK_INTERFACE(IExynosHWCService, data, reply);
             int num = data.readInt32();
             int res = setExternalDispLayerNum(num);
+            reply->writeInt32(res);
+            return NO_ERROR;
+        } break;
+        case SET_FORCE_GPU: {
+            CHECK_INTERFACE(IExynosHWCService, data, reply);
+            int on = data.readInt32();
+            int res = setForceGPU(on);
             reply->writeInt32(res);
             return NO_ERROR;
         } break;

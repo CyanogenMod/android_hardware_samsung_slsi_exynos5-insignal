@@ -47,6 +47,7 @@ public:
     virtual int setDispOrientation(unsigned int transform) = 0;
     virtual int setProtectionMode(unsigned int mode) = 0;
     virtual int setExternalDispLayerNum(unsigned int num) = 0;
+    virtual int setForceGPU(unsigned int on) = 0;
 
     virtual void setHdmiResolution(int resolution, int s3dMode) = 0;
     virtual void setHdmiCableStatus(int status) = 0;

@@ -32,7 +32,7 @@ enum {
     SET_WFD_MODE = 0,
     SET_EXT_FB_MODE,
     SET_CAMERA_MODE,
-    SET_HDMI_MIRROR_MODE,
+    SET_FORCE_MIRROR_MODE,
     SET_VIDEO_SEEK_STATUS,
     SET_DISPLAY_ORIENTATION,
     SET_PROTECTION_MODE,
@@ -91,12 +91,12 @@ public:
         return result;
     }
 
-    virtual int setHDMIMirrorMode(unsigned int mode)
+    virtual int setForceMirrorMode(unsigned int mode)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
         data.writeInt32(mode);
-        int result = remote()->transact(SET_HDMI_MIRROR_MODE, data, &reply);
+        int result = remote()->transact(SET_FORCE_MIRROR_MODE, data, &reply);
         result = reply.readInt32();
         return result;
     }
@@ -241,10 +241,10 @@ status_t BnExynosHWCService::onTransact(
             reply->writeInt32(res);
             return NO_ERROR;
         } break;
-        case SET_HDMI_MIRROR_MODE: {
+        case SET_FORCE_MIRROR_MODE: {
             CHECK_INTERFACE(IExynosHWCService, data, reply);
             int mode = data.readInt32();
-            int res = setHDMIMirrorMode(mode);
+            int res = setForceMirrorMode(mode);
             reply->writeInt32(res);
             return NO_ERROR;
         } break;

@@ -51,9 +51,11 @@ int ExynosHWCService::setCameraMode(unsigned int mode)
     return NO_ERROR;
 }
 
-int ExynosHWCService::setHDMIMirrorMode(unsigned int mode)
+int ExynosHWCService::setForceMirrorMode(unsigned int mode)
 {
     ALOGD_IF(HWC_SERVICE_DEBUG, "%s::mode=%d", __func__, mode);
+    mHWCCtx->force_mirror_mode = mode;
+    mHWCCtx->procs->invalidate(mHWCCtx->procs);
     return NO_ERROR;
 }
 

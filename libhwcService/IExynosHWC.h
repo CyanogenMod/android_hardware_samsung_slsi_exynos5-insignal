@@ -42,7 +42,7 @@ public:
      */
     virtual int setExtraFBMode(unsigned int mode) = 0;
     virtual int setCameraMode(unsigned int mode) = 0;
-    virtual int setHDMIMirrorMode(unsigned int mode) = 0;
+    virtual int setForceMirrorMode(unsigned int mode) = 0;
     virtual int setVideoSeekStatus(unsigned int mode) = 0;
     virtual int setDispOrientation(unsigned int transform) = 0;
     virtual int setProtectionMode(unsigned int mode) = 0;

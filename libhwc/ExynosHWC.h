@@ -152,5 +152,6 @@ struct exynos5_hwc_composer_device_1_t {
 #ifdef HWC_SERVICES
     android::ExynosHWCService   *mHWCService;
 #endif
+    int force_mirror_mode;
 };
 #endif

@@ -919,8 +919,8 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
              *       not be modified/removed at a later time
              */
 #if defined(GSC_VIDEO)
-            if ((h->flags & GRALLOC_USAGE_PROTECTED) ||
-                ((int)get_yuv_planes(HAL_PIXEL_FORMAT_2_V4L2_PIX(h->format)) >= 0)) {
+            if (!pdev->force_mirror_mode && ((h->flags & GRALLOC_USAGE_PROTECTED) ||
+                ((int)get_yuv_planes(HAL_PIXEL_FORMAT_2_V4L2_PIX(h->format)) >= 0))) {
 #else
             if (h->flags & GRALLOC_USAGE_PROTECTED) {
 #endif
@@ -2049,6 +2049,8 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
     char value[PROPERTY_VALUE_MAX];
     property_get("debug.hwc.force_gpu", value, "0");
     dev->force_gpu = atoi(value);
+
+    dev->force_mirror_mode = 0;
 
     return 0;
 

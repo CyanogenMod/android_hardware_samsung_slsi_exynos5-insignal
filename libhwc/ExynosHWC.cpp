@@ -986,6 +986,10 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 {
     ALOGV("preparing %u layers for HDMI", contents->numHwLayers);
     hwc_layer_1_t *video_layer = NULL;
+#if defined(GSC_VIDEO)
+    int numVideoLayers = 0;
+    int videoIndex;
+#endif
 
     for (size_t i = 0; i < contents->numHwLayers; i++) {
         hwc_layer_1_t &layer = contents->hwLayers[i];
@@ -1017,32 +1021,8 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                     video_layer = &layer;
                     layer.compositionType = HWC_OVERLAY;
 #if defined(GSC_VIDEO)
-                    if (h->flags & GRALLOC_USAGE_EXTERNAL_DISP) {
-                        struct v4l2_rect dest_rect;
-
-                        if (pdev->mS3DMode == S3D_MODE_DISABLED) {
-                            hdmi_cal_dest_rect(WIDTH(layer.sourceCrop), HEIGHT(layer.sourceCrop),
-                                    pdev->hdmi_w, pdev->hdmi_h, &dest_rect);
-
-                            layer.displayFrame.left = dest_rect.left;
-                            layer.displayFrame.top = dest_rect.top;
-                            layer.displayFrame.right = dest_rect.width + dest_rect.left;
-                            layer.displayFrame.bottom = dest_rect.height + dest_rect.top;
-                        } else {
-                            layer.displayFrame.left = 0;
-                            layer.displayFrame.top = 0;
-                            layer.displayFrame.right = pdev->hdmi_w;
-                            layer.displayFrame.bottom = pdev->hdmi_h;
-                        }
-                        for (int j = 0; j < contents->numHwLayers; j++) {
-                            if (j == i)
-                                continue;
-                            hwc_layer_1_t &prevLayer = contents->hwLayers[j];
-                            prevLayer.compositionType = HWC_OVERLAY;
-                            prevLayer.flags |= HWC_SKIP_LAYER;
-                        }
-                        break;
-                    }
+                    videoIndex = i;
+                    numVideoLayers++;
 #endif
                     ALOGV("\tlayer %u: video layer", i);
                     dump_layer(&layer);
@@ -1054,7 +1034,36 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
         layer.compositionType = HWC_FRAMEBUFFER;
         dump_layer(&layer);
     }
+#if defined(GSC_VIDEO)
+    if (numVideoLayers == 1) {
+        for (int i = 0; i < contents->numHwLayers; i++) {
+            hwc_layer_1_t &layer = contents->hwLayers[i];
+            layer.compositionType = HWC_OVERLAY;
+            if (i == videoIndex) {
+                struct v4l2_rect dest_rect;
+                if (pdev->mS3DMode == S3D_MODE_DISABLED) {
+                    hdmi_cal_dest_rect(WIDTH(layer.sourceCrop), HEIGHT(layer.sourceCrop),
+                            pdev->hdmi_w, pdev->hdmi_h, &dest_rect);
 
+                    layer.displayFrame.left = dest_rect.left;
+                    layer.displayFrame.top = dest_rect.top;
+                    layer.displayFrame.right = dest_rect.width + dest_rect.left;
+                    layer.displayFrame.bottom = dest_rect.height + dest_rect.top;
+                } else {
+                    layer.displayFrame.left = 0;
+                    layer.displayFrame.top = 0;
+                    layer.displayFrame.right = pdev->hdmi_w;
+                    layer.displayFrame.bottom = pdev->hdmi_h;
+                }
+            }
+        }
+    } else if (numVideoLayers > 1) {
+        for (int i = 0; i < contents->numHwLayers; i++) {
+            hwc_layer_1_t &layer = contents->hwLayers[i];
+            layer.compositionType = HWC_FRAMEBUFFER;
+        }
+    }
+#endif
     return 0;
 }
 
@@ -1582,6 +1591,10 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 
         if (layer.compositionType == HWC_OVERLAY) {
             if (!layer.handle)
+                continue;
+
+            private_handle_t *handle = private_handle_t::dynamicCast(layer.handle);
+            if ((int)get_yuv_planes(HAL_PIXEL_FORMAT_2_V4L2_PIX(handle->format)) < 0)
                 continue;
 
             ALOGV("HDMI video layer:");

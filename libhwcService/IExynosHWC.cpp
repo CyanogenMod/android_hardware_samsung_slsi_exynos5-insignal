@@ -46,6 +46,7 @@ enum {
     SET_HDMI_ENABLE,
     SET_HDMI_LAYER_ENABLE,
     SET_HDMI_LAYER_DISABLE,
+    SET_HDMI_AUDIO_CHANNEL,
     SET_HDMI_ROTATE,
     SET_HDMI_PATH,
     SET_HDMI_DRM,
@@ -153,10 +154,19 @@ public:
 
     virtual void setHdmiResolution(int resolution, int s3dMode)
     {
+        Parcel data, reply;
+        data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
+        data.writeInt32(resolution);
+        data.writeInt32(s3dMode);
+        remote()->transact(SET_HDMI_RESOLUTION, data, &reply);
     }
 
     virtual void setHdmiCableStatus(int status)
     {
+        Parcel data, reply;
+        data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
+        data.writeInt32(status);
+        remote()->transact(SET_HDMI_CABLE_STATUS, data, &reply);
     }
 
     virtual void setHdmiMode(int mode)
@@ -165,6 +175,10 @@ public:
 
     virtual void setHdmiHdcp(int status)
     {
+        Parcel data, reply;
+        data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
+        data.writeInt32(status);
+        remote()->transact(SET_HDMI_HDCP, data, &reply);
     }
 
     virtual void setHdmiDRM(bool status)
@@ -187,6 +201,14 @@ public:
     {
     }
 
+    virtual void setHdmiAudioChannel(uint32_t channels)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
+        data.writeInt32(channels);
+        remote()->transact(SET_HDMI_AUDIO_CHANNEL, data, &reply);
+    }
+
     virtual void setHdmiRotate(int rotVal, uint32_t hwcLayer)
     {
     }
@@ -205,12 +227,18 @@ public:
 
     virtual uint32_t getHdmiCableStatus()
     {
-        return 0;
+        Parcel data, reply;
+        data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
+        remote()->transact(GET_HDMI_CABLE_STATUS, data, &reply);
+        return (uint32_t)reply.readInt32();
     }
 
     virtual uint32_t getHdmiAudioChannel()
     {
-        return 0;
+        Parcel data, reply;
+        data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
+        remote()->transact(GET_HDMI_AUDIO_CHANNEL, data, &reply);
+        return (uint32_t)reply.readInt32();
     }
 };
 
@@ -289,7 +317,43 @@ status_t BnExynosHWCService::onTransact(
             int s3dMode = data.readInt32();
             setHdmiResolution(resolution, s3dMode);
             return NO_ERROR;
-        }
+        } break;
+        case GET_HDMI_RESOLUTION: {
+            CHECK_INTERFACE(IExynosHWCService, data, reply);
+            uint32_t width, height;
+            getHdmiResolution(&width, &height);
+            reply->writeInt32(width);
+            reply->writeInt32(height);
+            return NO_ERROR;
+        } break;
+        case SET_HDMI_CABLE_STATUS: {
+            CHECK_INTERFACE(IExynosHWCService, data, reply);
+            int status = data.readInt32();
+            setHdmiCableStatus(status);
+            return NO_ERROR;
+        } break;
+        case GET_HDMI_CABLE_STATUS: {
+            CHECK_INTERFACE(IExynosHWCService, data, reply);
+            reply->writeInt32(getHdmiCableStatus());
+            return NO_ERROR;
+        } break;
+        case SET_HDMI_HDCP: {
+            CHECK_INTERFACE(IExynosHWCService, data, reply);
+            int status = data.readInt32();
+            setHdmiHdcp(status);
+            return NO_ERROR;
+        } break;
+        case GET_HDMI_AUDIO_CHANNEL: {
+            CHECK_INTERFACE(IExynosHWCService, data, reply);
+            reply->writeInt32(getHdmiAudioChannel());
+            return NO_ERROR;
+        } break;
+        case SET_HDMI_AUDIO_CHANNEL: {
+            CHECK_INTERFACE(IExynosHWCService, data, reply);
+            int channels = data.readInt32();
+            setHdmiAudioChannel(channels);
+            return NO_ERROR;
+        } break;
 
         default:
             return BBinder::onTransact(code, data, reply, flags);

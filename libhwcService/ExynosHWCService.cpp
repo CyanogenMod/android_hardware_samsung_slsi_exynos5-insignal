@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 #include "ExynosHWCService.h"
+#include "exynos_v4l2.h"
+#include "videodev2_exynos_media.h"
 
 #define HWC_SERVICE_DEBUG 1
 
@@ -97,6 +99,7 @@ void ExynosHWCService::setHdmiResolution(int resolution, int s3dMode)
 
 void ExynosHWCService::setHdmiCableStatus(int status)
 {
+    mHWCCtx->hdmi_hpd = !!status;
 }
 
 void ExynosHWCService::setHdmiMode(int mode)
@@ -105,6 +108,9 @@ void ExynosHWCService::setHdmiMode(int mode)
 
 void ExynosHWCService::setHdmiHdcp(int status)
 {
+    if (exynos_v4l2_s_ctrl(mHWCCtx->hdmi_layers[1].fd, V4L2_CID_TV_HDCP_ENABLE,
+                           !!status) < 0)
+        ALOGE("%s: s_ctrl(CID_TV_HDCP_ENABLE) failed %d", __func__, errno);
 }
 
 void ExynosHWCService::setHdmiDRM(bool status)
@@ -127,6 +133,13 @@ void ExynosHWCService::setHdmiLayerDisable(uint32_t hdmiLayer)
 {
 }
 
+void ExynosHWCService::setHdmiAudioChannel(uint32_t channels)
+{
+    if (exynos_v4l2_s_ctrl(mHWCCtx->hdmi_layers[0].fd,
+            V4L2_CID_TV_SET_NUM_CHANNELS, channels) < 0)
+        ALOGE("%s: failed to set audio channels", __func__);
+}
+
 void ExynosHWCService::setHdmiRotate(int rotVal, uint32_t hwcLayer)
 {
 }
@@ -145,12 +158,16 @@ void ExynosHWCService::getHdmiResolution(uint32_t *width, uint32_t *height)
 
 uint32_t ExynosHWCService::getHdmiCableStatus()
 {
-    return 0;
+    return !!mHWCCtx->hdmi_hpd;
 }
 
 uint32_t ExynosHWCService::getHdmiAudioChannel()
 {
-    return 0;
+    int channels;
+    if (exynos_v4l2_g_ctrl(mHWCCtx->hdmi_layers[0].fd,
+            V4L2_CID_TV_MAX_AUDIO_CHANNELS, &channels) < 0)
+        ALOGE("%s: failed to get audio channels", __func__);
+    return channels;
 }
 
 int ExynosHWCService::createServiceLocked()

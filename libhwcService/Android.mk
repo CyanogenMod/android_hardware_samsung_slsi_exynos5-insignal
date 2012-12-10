@@ -20,7 +20,7 @@ LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
 LOCAL_PRELINK_MODULE := false
-LOCAL_SHARED_LIBRARIES := liblog libcutils libhardware_legacy libutils libbinder
+LOCAL_SHARED_LIBRARIES := liblog libcutils libhardware_legacy libutils libbinder libexynosv4l2
 LOCAL_CFLAGS += -DLOG_TAG=\"HWCService\"
 
 LOCAL_C_INCLUDES := \

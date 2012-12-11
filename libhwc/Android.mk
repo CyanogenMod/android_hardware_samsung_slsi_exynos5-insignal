@@ -24,6 +24,7 @@ LOCAL_SHARED_LIBRARIES := liblog libcutils libEGL libGLESv1_CM libhardware \
 	libexynosv4l2 libMcClient libexynosutils
 ifeq ($(BOARD_USES_HWC_SERVICES),true)
 	LOCAL_SHARED_LIBRARIES += libExynosHWCService
+	LOCAL_CFLAGS += -DHWC_SERVICES
 endif
 LOCAL_CFLAGS += -DLOG_TAG=\"hwcomposer\"
 

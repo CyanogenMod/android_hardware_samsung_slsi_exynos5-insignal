@@ -25,7 +25,12 @@ LOCAL_SHARED_LIBRARIES := liblog libcutils libEGL libGLESv1_CM libhardware \
 ifeq ($(BOARD_USES_HWC_SERVICES),true)
 	LOCAL_SHARED_LIBRARIES += libExynosHWCService
 	LOCAL_CFLAGS += -DHWC_SERVICES
+
+ifeq ($(BOARD_USES_WFD),true)
+	LOCAL_CFLAGS += -DUSES_WFD
 endif
+endif
+
 ifeq ($(BOARD_USES_CEC),true)
 	LOCAL_SHARED_LIBRARIES += libcec
 	LOCAL_CFLAGS += -DUSES_CEC

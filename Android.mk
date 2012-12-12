@@ -29,20 +29,6 @@ exynos5_dirs := \
 	libkeymaster \
 	libsecurepath
 
-BOARD_USE_V4L2 := true
-BOARD_USE_V4L2_ION := true
-
-# TVOUT
-#BOARD_USES_HDMI := true
-#BOARD_HDMI_STD := STD_1080P
-#BOARD_HDMI_DDC_CH := DDC_CH_I2C_2
-#BOARD_USES_HDMI_FIMGAPI := true
-#BOARD_USES_FIMGAPI := true
-
-# HWC
-USE_HWC_CSC_THREAD := true
-
-
 include $(call all-named-subdir-makefiles,$(exynos5_dirs))
 
 endif

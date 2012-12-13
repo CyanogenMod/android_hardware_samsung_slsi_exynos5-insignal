@@ -1817,12 +1817,11 @@ static ExynosVideoErrorType MFC_Encoder_Enqueue_Inbuf(
     if (pCtx->bShareInbuf == VIDEO_TRUE) {
         buf.memory = pCtx->nMemoryType;
         for (i = 0; i < nPlanes; i++) {
-            /* V4L2_MEMORY_USERPTR */
-            buf.m.planes[i].m.userptr = (unsigned long)pBuffer[i];
-            /* V4L2_MEMORY_DMABUF */
-#ifdef USE_DMA_BUF
-            buf.m.planes[i].m.fd = pCtx->pInbuf[buf.index].planes[i].fd;
-#endif
+            if (buf.memory == V4L2_MEMORY_USERPTR)
+                buf.m.planes[i].m.userptr = (unsigned long)pBuffer[i];
+            else
+                buf.m.planes[i].m.fd = pCtx->pInbuf[buf.index].planes[i].fd;
+
             buf.m.planes[i].length = pCtx->pInbuf[index].planes[i].allocSize;
             buf.m.planes[i].bytesused = dataSize[i];
         }
@@ -1902,12 +1901,11 @@ static ExynosVideoErrorType MFC_Encoder_Enqueue_Outbuf(
     if (pCtx->bShareOutbuf == VIDEO_TRUE) {
         buf.memory = pCtx->nMemoryType;
         for (i = 0; i < nPlanes; i++) {
-            /* V4L2_MEMORY_USERPTR */
-            buf.m.planes[i].m.userptr = (unsigned long)pBuffer[i];
-            /* V4L2_MEMORY_DMABUF */
-#ifdef USE_DMA_BUF
-            buf.m.planes[i].m.fd = pCtx->pOutbuf[index].planes[i].fd;
-#endif
+            if (buf.memory == V4L2_MEMORY_USERPTR)
+                buf.m.planes[i].m.userptr = (unsigned long)pBuffer[i];
+            else
+                buf.m.planes[i].m.fd = pCtx->pOutbuf[index].planes[i].fd;
+
             buf.m.planes[i].length = pCtx->pOutbuf[index].planes[i].allocSize;
             buf.m.planes[i].bytesused = dataSize[i];
         }
@@ -2183,11 +2181,13 @@ static ExynosVideoErrorType MFC_Encoder_ExtensionEnqueue_Inbuf(
 
     buf.memory = pCtx->nMemoryType;
     for (i = 0; i < nPlanes; i++) {
-        /* V4L2_MEMORY_DMABUF */
-        buf.m.planes[i].m.fd = (unsigned int)pFd[i];
+        if (buf.memory == V4L2_MEMORY_USERPTR)
+            buf.m.planes[i].m.userptr = (unsigned long)pBuffer[i];
+        else
+            buf.m.planes[i].m.fd = (unsigned int)pFd[i];
+
         buf.m.planes[i].length = allocLen[i];
         buf.m.planes[i].bytesused = dataSize[i];
-        buf.m.planes[i].m.userptr = (unsigned long)pBuffer[i];
 
         /* Temporary storage for Dequeue */
         pCtx->pInbuf[buf.index].planes[i].addr = (unsigned long)pBuffer[i];

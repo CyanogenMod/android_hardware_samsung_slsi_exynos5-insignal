@@ -6,10 +6,6 @@ LOCAL_SRC_FILES := \
 	dec/ExynosVideoDecoder.c \
 	enc/ExynosVideoEncoder.c
 
-ifeq ($(BOARD_USE_DMA_BUF), true)
-LOCAL_CFLAGS += -DUSE_DMA_BUF
-endif
-
 LOCAL_C_INCLUDES := \
 	$(LOCAL_PATH)/include \
 	$(TOP)/hardware/samsung_slsi/exynos/include

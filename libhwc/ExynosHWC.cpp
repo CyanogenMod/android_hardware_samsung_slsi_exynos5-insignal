@@ -2015,9 +2015,8 @@ static void *hwc_vsync_thread(void *data)
             ALOGE("error in vsync thread: %s", strerror(errno));
         }
 #ifdef HWC_DYNAMIC_RECOMPOSITION
-    if ((pdev->needInvalidate || pdev->needInvalidForVsync) && (!pdev->invalidateStatus)) {
+    if (pdev->needInvalidate && (!pdev->invalidateStatus)) {
         pdev->needInvalidate = 0;
-        pdev->needInvalidForVsync = 0;
         pdev->invalidateStatus = 1;
         if ((pdev->procs) && (pdev->procs->invalidate))
             pdev->procs->invalidate(pdev->procs);

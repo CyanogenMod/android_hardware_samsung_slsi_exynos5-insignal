@@ -945,6 +945,17 @@ static int exynos5_prepare_fimd(exynos5_hwc_composer_device_1_t *pdev,
                 private_handle_t *handle =
                         private_handle_t::dynamicCast(layer.handle);
                 if (exynos5_requires_gscaler(layer, handle->format)) {
+#ifdef HWC_SERVICES
+                    if (pdev->hdmi_hpd && (handle->flags & GRALLOC_USAGE_PROTECTED) &&
+                        (!pdev->video_playback_status)) {
+                        /*
+                         * video is a DRM content and play status is normal. video display is going to be
+                         * skipped on LCD.
+                         */
+                         ALOGV("DRM video layer-%d display is skipped on LCD", i);
+                         continue;
+                    }
+#endif
                     ALOGV("\tusing gscaler %u", AVAILABLE_GSC_UNITS[FIMD_GSC_IDX]);
                     pdev->bufs.gsc_map[nextWindow].mode =
                             exynos5_gsc_map_t::GSC_M2M;

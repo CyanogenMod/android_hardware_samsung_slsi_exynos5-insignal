@@ -177,6 +177,7 @@ struct exynos5_hwc_composer_device_1_t {
     bool mHdmiResolutionHandled;
     int mS3DMode;
     bool mUseSubtitles;
+    int video_playback_status;
 #endif
     int force_mirror_mode;
 

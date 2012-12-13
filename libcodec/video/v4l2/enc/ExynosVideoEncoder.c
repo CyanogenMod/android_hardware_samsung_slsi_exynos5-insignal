@@ -1171,11 +1171,7 @@ static ExynosVideoErrorType MFC_Encoder_Setup_Inbuf(
     req.count = nBufferCount;
 
     if (pCtx->bShareInbuf == VIDEO_TRUE)
-#ifdef USE_USERPTR_CAMERA_INPUT
-        req.memory = V4L2_MEMORY_USERPTR;
-#else
         req.memory = pCtx->nMemoryType;
-#endif
     else
         req.memory = V4L2_MEMORY_MMAP;
 
@@ -1819,21 +1815,14 @@ static ExynosVideoErrorType MFC_Encoder_Enqueue_Inbuf(
     pthread_mutex_unlock(pMutex);
 
     if (pCtx->bShareInbuf == VIDEO_TRUE) {
-#ifdef USE_USERPTR_CAMERA_INPUT
-        buf.memory = V4L2_MEMORY_USERPTR;
-#else
         buf.memory = pCtx->nMemoryType;
-#endif
         for (i = 0; i < nPlanes; i++) {
             /* V4L2_MEMORY_USERPTR */
             buf.m.planes[i].m.userptr = (unsigned long)pBuffer[i];
-#ifndef USE_USERPTR_CAMERA_INPUT
             /* V4L2_MEMORY_DMABUF */
 #ifdef USE_DMA_BUF
             buf.m.planes[i].m.fd = pCtx->pInbuf[buf.index].planes[i].fd;
 #endif
-#endif
-
             buf.m.planes[i].length = pCtx->pInbuf[index].planes[i].allocSize;
             buf.m.planes[i].bytesused = dataSize[i];
         }
@@ -1993,11 +1982,7 @@ static ExynosVideoBuffer *MFC_Encoder_Dequeue_Inbuf(void *pHandle)
     buf.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
 
     if (pCtx->bShareInbuf == VIDEO_TRUE)
-#ifdef USE_USERPTR_CAMERA_INPUT
-        buf.memory = V4L2_MEMORY_USERPTR;
-#else
         buf.memory = pCtx->nMemoryType;
-#endif
     else
         buf.memory = V4L2_MEMORY_MMAP;
 
@@ -2195,11 +2180,8 @@ static ExynosVideoErrorType MFC_Encoder_ExtensionEnqueue_Inbuf(
 
     pCtx->pInbuf[buf.index].bQueued = VIDEO_TRUE;
     pthread_mutex_unlock(pMutex);
-#ifdef USE_USERPTR_CAMERA_INPUT
-    buf.memory = V4L2_MEMORY_USERPTR;
-#else
+
     buf.memory = pCtx->nMemoryType;
-#endif
     for (i = 0; i < nPlanes; i++) {
         /* V4L2_MEMORY_DMABUF */
         buf.m.planes[i].m.fd = (unsigned int)pFd[i];
@@ -2252,11 +2234,7 @@ static ExynosVideoErrorType MFC_Encoder_ExtensionDequeue_Inbuf(void *pHandle, Ex
 
     memset(&buf, 0, sizeof(buf));
     buf.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
-#ifdef USE_USERPTR_CAMERA_INPUT
-    buf.memory = V4L2_MEMORY_USERPTR;
-#else
     buf.memory = pCtx->nMemoryType;
-#endif
     if (exynos_v4l2_dqbuf(pCtx->hEnc, &buf) != 0) {
         ALOGE("%s: Failed to dequeue input buffer", __func__);
         ret = VIDEO_ERROR_APIFAIL;

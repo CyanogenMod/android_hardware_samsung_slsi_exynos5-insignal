@@ -75,7 +75,7 @@ public:
     virtual int setExtraFBMode(unsigned int mode);
     virtual int setCameraMode(unsigned int mode);
     virtual int setForceMirrorMode(unsigned int mode);
-    virtual int setVideoSeekStatus(unsigned int mode);
+    virtual int setVideoPlayStatus(unsigned int mode);
     virtual int setDispOrientation(unsigned int transform);
     virtual int setProtectionMode(unsigned int mode);
     virtual int setExternalDispLayerNum(unsigned int num);

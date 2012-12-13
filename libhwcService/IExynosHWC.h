@@ -26,6 +26,12 @@
 
 namespace android {
 
+enum {
+    VIDEO_PLAY_NORMAL = 0,
+    VIDEO_PLAY_PAUSE,
+    VIDEO_PLAY_SEEK,
+};
+
 class IExynosHWCService : public IInterface {
 public:
 
@@ -43,7 +49,13 @@ public:
     virtual int setExtraFBMode(unsigned int mode) = 0;
     virtual int setCameraMode(unsigned int mode) = 0;
     virtual int setForceMirrorMode(unsigned int mode) = 0;
-    virtual int setVideoSeekStatus(unsigned int mode) = 0;
+
+    /*
+     * setVideoPlayStatus() function sets the Video playback status.
+     * It is used to inform the HWC about the video playback seek and
+     * pause status.
+     */
+    virtual int setVideoPlayStatus(unsigned int mode) = 0;
     virtual int setDispOrientation(unsigned int transform) = 0;
     virtual int setProtectionMode(unsigned int mode) = 0;
     virtual int setExternalDispLayerNum(unsigned int num) = 0;

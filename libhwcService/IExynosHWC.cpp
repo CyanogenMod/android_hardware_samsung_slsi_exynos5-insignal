@@ -33,7 +33,7 @@ enum {
     SET_EXT_FB_MODE,
     SET_CAMERA_MODE,
     SET_FORCE_MIRROR_MODE,
-    SET_VIDEO_SEEK_STATUS,
+    SET_VIDEO_PLAY_STATUS,
     SET_DISPLAY_ORIENTATION,
     SET_PROTECTION_MODE,
     SET_EXTERNAL_DISP_LAY_NUM,
@@ -103,12 +103,12 @@ public:
         return result;
     }
 
-    virtual int setVideoSeekStatus(unsigned int mode)
+    virtual int setVideoPlayStatus(unsigned int mode)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
         data.writeInt32(mode);
-        int result = remote()->transact(SET_VIDEO_SEEK_STATUS, data, &reply);
+        int result = remote()->transact(SET_VIDEO_PLAY_STATUS, data, &reply);
         result = reply.readInt32();
         return result;
     }
@@ -290,10 +290,10 @@ status_t BnExynosHWCService::onTransact(
             reply->writeInt32(res);
             return NO_ERROR;
         } break;
-        case SET_VIDEO_SEEK_STATUS: {
+        case SET_VIDEO_PLAY_STATUS: {
             CHECK_INTERFACE(IExynosHWCService, data, reply);
             int mode = data.readInt32();
-            int res = setVideoSeekStatus(mode);
+            int res = setVideoPlayStatus(mode);
             reply->writeInt32(res);
             return NO_ERROR;
         } break;

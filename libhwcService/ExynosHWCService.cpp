@@ -61,9 +61,12 @@ int ExynosHWCService::setForceMirrorMode(unsigned int mode)
     return NO_ERROR;
 }
 
-int ExynosHWCService::setVideoSeekStatus(unsigned int mode)
+int ExynosHWCService::setVideoPlayStatus(unsigned int status)
 {
-    ALOGD_IF(HWC_SERVICE_DEBUG, "%s::mode=%d", __func__, mode);
+    ALOGD_IF(HWC_SERVICE_DEBUG, "%s::status=%d", __func__, status);
+    if (mHWCCtx)
+        mHWCCtx->video_playback_status = status;
+
     return NO_ERROR;
 }
 

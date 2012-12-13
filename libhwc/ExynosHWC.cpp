@@ -2242,6 +2242,10 @@ static int exynos5_close(hw_device_t *device)
             (struct exynos5_hwc_composer_device_1_t *)device;
     pthread_kill(dev->vsync_thread, SIGTERM);
     pthread_join(dev->vsync_thread, NULL);
+#ifdef HWC_DYNAMIC_RECOMPOSITION
+    pthread_kill(dev->vsync_stat_thread, SIGTERM);
+    pthread_join(dev->vsync_stat_thread, NULL);
+#endif
     for (size_t i = 0; i < NUM_GSC_UNITS; i++)
         exynos5_cleanup_gsc_m2m(dev, i);
     gralloc_close(dev->alloc_device);

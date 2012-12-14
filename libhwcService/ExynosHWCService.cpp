@@ -191,6 +191,11 @@ void ExynosHWCService::setHdmiAudioChannel(uint32_t channels)
         ALOGE("%s: failed to set audio channels", __func__);
 }
 
+void ExynosHWCService::setHdmiSubtitles(bool use)
+{
+    mHWCCtx->mUseSubtitles = use;
+}
+
 void ExynosHWCService::setHdmiRotate(int rotVal, uint32_t hwcLayer)
 {
 }

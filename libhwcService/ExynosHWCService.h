@@ -91,6 +91,7 @@ public:
     virtual void setHdmiLayerEnable(uint32_t hdmiLayer);
     virtual void setHdmiLayerDisable(uint32_t hdmiLayer);
     virtual void setHdmiAudioChannel(uint32_t channels);
+    virtual void setHdmiSubtitles(bool use);
     /*
      * These functions may not be necessary
      */

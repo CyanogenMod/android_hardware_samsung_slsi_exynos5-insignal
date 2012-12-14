@@ -47,6 +47,7 @@ enum {
     SET_HDMI_LAYER_ENABLE,
     SET_HDMI_LAYER_DISABLE,
     SET_HDMI_AUDIO_CHANNEL,
+    SET_HDMI_SUBTITLES,
     SET_HDMI_ROTATE,
     SET_HDMI_PATH,
     SET_HDMI_DRM,
@@ -209,6 +210,14 @@ public:
         remote()->transact(SET_HDMI_AUDIO_CHANNEL, data, &reply);
     }
 
+    virtual void setHdmiSubtitles(bool use)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
+        data.writeInt32(use);
+        remote()->transact(SET_HDMI_SUBTITLES, data, &reply);
+    }
+
     virtual void setHdmiRotate(int rotVal, uint32_t hwcLayer)
     {
     }
@@ -357,6 +366,12 @@ status_t BnExynosHWCService::onTransact(
             CHECK_INTERFACE(IExynosHWCService, data, reply);
             int channels = data.readInt32();
             setHdmiAudioChannel(channels);
+            return NO_ERROR;
+        } break;
+        case SET_HDMI_SUBTITLES: {
+            CHECK_INTERFACE(IExynosHWCService, data, reply);
+            int use = data.readInt32();
+            setHdmiSubtitles(use);
             return NO_ERROR;
         } break;
 

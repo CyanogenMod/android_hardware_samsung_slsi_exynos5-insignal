@@ -194,6 +194,12 @@ struct exynos5_hwc_composer_device_1_t {
     int vsyn_event_cnt;
     int invalid_trigger;
 #endif
+
+#if defined(USES_CEC)
+    int mCecFd;
+    int mCecPaddr;
+    int mCecLaddr;
+#endif
 };
 
 #if defined(HWC_SERVICES)

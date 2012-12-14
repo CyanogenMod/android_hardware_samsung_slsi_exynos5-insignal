@@ -27,7 +27,8 @@ exynos5_dirs := \
 	libhwc \
 	mobicore \
 	libkeymaster \
-	libsecurepath
+	libsecurepath \
+	libcec
 
 include $(call all-named-subdir-makefiles,$(exynos5_dirs))
 

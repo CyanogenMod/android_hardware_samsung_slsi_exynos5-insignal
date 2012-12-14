@@ -26,8 +26,9 @@ ifeq ($(BOARD_USES_HWC_SERVICES),true)
 	LOCAL_SHARED_LIBRARIES += libExynosHWCService
 	LOCAL_CFLAGS += -DHWC_SERVICES
 endif
-ifeq ($(BOARD_USES_PRESENTATION_SUBTITLES),true)
-	LOCAL_CFLAGS += -DPRESENTATION_SUBTITLES
+ifeq ($(BOARD_USES_CEC),true)
+	LOCAL_SHARED_LIBRARIES += libcec
+	LOCAL_CFLAGS += -DUSES_CEC
 endif
 LOCAL_CFLAGS += -DLOG_TAG=\"hwcomposer\"
 
@@ -36,7 +37,8 @@ LOCAL_C_INCLUDES := \
 	$(TOP)/hardware/samsung_slsi/exynos/include \
 	$(TOP)/hardware/samsung_slsi/exynos/libexynosutils \
 	$(TOP)/hardware/samsung_slsi/$(TARGET_SOC)/include \
-	$(TOP)/hardware/samsung_slsi/$(TARGET_SOC)/libhwcmodule
+	$(TOP)/hardware/samsung_slsi/$(TARGET_SOC)/libhwcmodule \
+	$(TOP)/hardware/samsung_slsi/$(TARGET_BOARD_PLATFORM)/libcec
 
 LOCAL_SRC_FILES := ExynosHWC.cpp
 

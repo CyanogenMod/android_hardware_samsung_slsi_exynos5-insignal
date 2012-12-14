@@ -1038,7 +1038,8 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
     if (numVideoLayers == 1) {
         for (int i = 0; i < contents->numHwLayers; i++) {
             hwc_layer_1_t &layer = contents->hwLayers[i];
-            layer.compositionType = HWC_OVERLAY;
+            if (!pdev->mUseSubtitles || i == videoIndex)
+                layer.compositionType = HWC_OVERLAY;
             if (i == videoIndex) {
                 struct v4l2_rect dest_rect;
                 if (pdev->mS3DMode == S3D_MODE_DISABLED) {
@@ -2371,6 +2372,7 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
     dev->mS3DMode = S3D_MODE_DISABLED;
     dev->mHdmiPreset = HDMI_PRESET_DEFAULT;
     dev->mHdmiCurrentPreset = HDMI_PRESET_DEFAULT;
+    dev->mUseSubtitles = false;
 #endif
 
     ret = pthread_create(&dev->vsync_thread, NULL, hwc_vsync_thread, dev);

@@ -157,6 +157,14 @@ struct hdmi_layer_t {
     size_t  queued_buf;
 };
 
+#ifdef USES_WFD
+struct wfd_layer_t {
+    int     fd;
+    bool    enabled;
+    exynos_gsc_img  cfg;
+};
+#endif
+
 struct exynos5_hwc_composer_device_1_t {
     hwc_composer_device_1_t base;
 
@@ -182,6 +190,15 @@ struct exynos5_hwc_composer_device_1_t {
     bool hdmi_blanked;
     int  hdmi_w;
     int  hdmi_h;
+
+#ifdef USES_WFD
+    bool wfd_hpd;
+    bool wfd_enabled;
+    bool wfd_blanked;
+    int  wfd_w;
+    int  wfd_h;
+    wfd_layer_t             wfd_output_layer;
+#endif
 
     hdmi_layer_t            hdmi_layers[2];
 

@@ -30,6 +30,7 @@ namespace android {
 
 enum {
     SET_WFD_MODE = 0,
+    SET_WFD_OUTPUT_RESOLUTION,
     SET_EXT_FB_MODE,
     SET_CAMERA_MODE,
     SET_FORCE_MIRROR_MODE,
@@ -51,6 +52,8 @@ enum {
     SET_HDMI_ROTATE,
     SET_HDMI_PATH,
     SET_HDMI_DRM,
+    GET_WFD_MODE,
+    GET_WFD_OUTPUT_RESOLUTION,
     GET_HDMI_CABLE_STATUS,
     GET_HDMI_RESOLUTION,
     GET_HDMI_AUDIO_CHANNEL,
@@ -69,6 +72,17 @@ public:
         data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
         data.writeInt32(mode);
         int result = remote()->transact(SET_WFD_MODE, data, &reply);
+        result = reply.readInt32();
+        return result;
+    }
+
+    virtual int setWFDOutputResolution(unsigned int width, unsigned int height)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
+        data.writeInt32(width);
+        data.writeInt32(height);
+        int result = remote()->transact(SET_WFD_OUTPUT_RESOLUTION, data, &reply);
         result = reply.readInt32();
         return result;
     }
@@ -194,6 +208,24 @@ public:
         remote()->transact(SET_HDMI_SUBTITLES, data, &reply);
     }
 
+    virtual int getWFDMode()
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
+        int result = remote()->transact(GET_WFD_MODE, data, &reply);
+        result = reply.readInt32();
+        return result;
+    }
+
+    virtual void getWFDOutputResolution(unsigned int *width, unsigned int *height)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
+        remote()->transact(GET_WFD_OUTPUT_RESOLUTION, data, &reply);
+        *width  = reply.readInt32();
+        *height = reply.readInt32();
+    }
+
     virtual void getHdmiResolution(uint32_t *width, uint32_t *height)
     {
         Parcel data, reply;
@@ -230,6 +262,14 @@ status_t BnExynosHWCService::onTransact(
             CHECK_INTERFACE(IExynosHWCService, data, reply);
             int mode = data.readInt32();
             int res = setWFDMode(mode);
+            reply->writeInt32(res);
+            return NO_ERROR;
+        } break;
+        case SET_WFD_OUTPUT_RESOLUTION: {
+            CHECK_INTERFACE(IExynosHWCService, data, reply);
+            int width  = data.readInt32();
+            int height = data.readInt32();
+            int res = setWFDOutputResolution(width, height);
             reply->writeInt32(res);
             return NO_ERROR;
         } break;
@@ -339,6 +379,20 @@ status_t BnExynosHWCService::onTransact(
             return NO_ERROR;
         } break;
 
+        case GET_WFD_MODE: {
+            CHECK_INTERFACE(IExynosHWCService, data, reply);
+            int res = getWFDMode();
+            reply->writeInt32(res);
+            return NO_ERROR;
+        } break;
+        case GET_WFD_OUTPUT_RESOLUTION: {
+            CHECK_INTERFACE(IExynosHWCService, data, reply);
+            uint32_t width, height;
+            getWFDOutputResolution(&width, &height);
+            reply->writeInt32(width);
+            reply->writeInt32(height);
+            return NO_ERROR;
+        } break;
         default:
             return BBinder::onTransact(code, data, reply, flags);
     }

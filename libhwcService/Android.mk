@@ -34,6 +34,10 @@ LOCAL_C_INCLUDES := \
 
 LOCAL_SRC_FILES := ExynosHWCService.cpp IExynosHWC.cpp
 
+ifeq ($(BOARD_USES_WFD),true)
+	LOCAL_CFLAGS += -DUSES_WFD
+endif
+
 LOCAL_MODULE := libExynosHWCService
 LOCAL_MODULE_TAGS := optional
 include $(BUILD_SHARED_LIBRARY)

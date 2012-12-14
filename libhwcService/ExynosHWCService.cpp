@@ -38,7 +38,35 @@ ExynosHWCService::~ExynosHWCService()
 int ExynosHWCService::setWFDMode(unsigned int mode)
 {
     ALOGD_IF(HWC_SERVICE_DEBUG, "%s::mode=%d", __func__, mode);
+
+#ifdef USES_WFD
+    if (mHWCCtx->hdmi_hpd != true) {
+        mHWCCtx->wfd_hpd = !!mode;
+    } else {
+        /* HDMI and WFD runs exclusively */
+        ALOGE_IF(HWC_SERVICE_DEBUG, "External Display was already enabled as HDMI.");
+        mHWCCtx->wfd_hpd = false;
+        return INVALID_OPERATION;
+    }
     return NO_ERROR;
+#else
+    return INVALID_OPERATION;
+#endif
+}
+
+int ExynosHWCService::setWFDOutputResolution(unsigned int width, unsigned int height)
+{
+    ALOGD_IF(HWC_SERVICE_DEBUG, "%s::width=%d, height=%d", __func__, width, height);
+
+#ifdef USES_WFD
+    if (mHWCCtx->wfd_hpd == true) {
+        mHWCCtx->wfd_w = width;
+        mHWCCtx->wfd_h = height;
+    }
+    return NO_ERROR;
+#else
+    return INVALID_OPERATION;
+#endif
 }
 
 int ExynosHWCService::setExtraFBMode(unsigned int mode)
@@ -173,6 +201,26 @@ void ExynosHWCService::setHdmiAudioChannel(uint32_t channels)
 void ExynosHWCService::setHdmiSubtitles(bool use)
 {
     mHWCCtx->mUseSubtitles = use;
+}
+
+int ExynosHWCService::getWFDMode()
+{
+#ifdef USES_WFD
+    return !!mHWCCtx->wfd_hpd;
+#else
+    return INVALID_OPERATION;
+#endif
+}
+
+void ExynosHWCService::getWFDOutputResolution(unsigned int *width, unsigned int *height)
+{
+#ifdef USES_WFD
+    *width  = mHWCCtx->wfd_w;
+    *height = mHWCCtx->wfd_h;
+#else
+    *width  = 0;
+    *height = 0;
+#endif
 }
 
 void ExynosHWCService::getHdmiResolution(uint32_t *width, uint32_t *height)

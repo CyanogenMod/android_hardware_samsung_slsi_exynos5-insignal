@@ -170,36 +170,12 @@ public:
         remote()->transact(SET_HDMI_CABLE_STATUS, data, &reply);
     }
 
-    virtual void setHdmiMode(int mode)
-    {
-    }
-
     virtual void setHdmiHdcp(int status)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
         data.writeInt32(status);
         remote()->transact(SET_HDMI_HDCP, data, &reply);
-    }
-
-    virtual void setHdmiDRM(bool status)
-    {
-    }
-
-    virtual void setHdmiHwcLayer(uint32_t hwcLayer)
-    {
-    }
-
-    virtual void setHdmiEnable(uint32_t enable)
-    {
-    }
-
-    virtual void setHdmiLayerEnable(uint32_t hdmiLayer)
-    {
-    }
-
-    virtual void setHdmiLayerDisable(uint32_t hdmiLayer)
-    {
     }
 
     virtual void setHdmiAudioChannel(uint32_t channels)
@@ -216,18 +192,6 @@ public:
         data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
         data.writeInt32(use);
         remote()->transact(SET_HDMI_SUBTITLES, data, &reply);
-    }
-
-    virtual void setHdmiRotate(int rotVal, uint32_t hwcLayer)
-    {
-    }
-
-    virtual void setHdmiPath(int path)
-    {
-    }
-
-    virtual void setHdmiDRM(int drmMode)
-    {
     }
 
     virtual void getHdmiResolution(uint32_t *width, uint32_t *height)

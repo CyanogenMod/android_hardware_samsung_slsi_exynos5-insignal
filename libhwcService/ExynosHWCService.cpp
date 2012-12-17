@@ -156,35 +156,11 @@ void ExynosHWCService::setHdmiCableStatus(int status)
     mHWCCtx->hdmi_hpd = !!status;
 }
 
-void ExynosHWCService::setHdmiMode(int mode)
-{
-}
-
 void ExynosHWCService::setHdmiHdcp(int status)
 {
     if (exynos_v4l2_s_ctrl(mHWCCtx->hdmi_layers[1].fd, V4L2_CID_TV_HDCP_ENABLE,
                            !!status) < 0)
         ALOGE("%s: s_ctrl(CID_TV_HDCP_ENABLE) failed %d", __func__, errno);
-}
-
-void ExynosHWCService::setHdmiDRM(bool status)
-{
-}
-
-void ExynosHWCService::setHdmiHwcLayer(uint32_t hwcLayer)
-{
-}
-
-void ExynosHWCService::setHdmiEnable(uint32_t enable)
-{
-}
-
-void ExynosHWCService::setHdmiLayerEnable(uint32_t hdmiLayer)
-{
-}
-
-void ExynosHWCService::setHdmiLayerDisable(uint32_t hdmiLayer)
-{
 }
 
 void ExynosHWCService::setHdmiAudioChannel(uint32_t channels)
@@ -197,18 +173,6 @@ void ExynosHWCService::setHdmiAudioChannel(uint32_t channels)
 void ExynosHWCService::setHdmiSubtitles(bool use)
 {
     mHWCCtx->mUseSubtitles = use;
-}
-
-void ExynosHWCService::setHdmiRotate(int rotVal, uint32_t hwcLayer)
-{
-}
-
-void ExynosHWCService::setHdmiPath(int path)
-{
-}
-
-void ExynosHWCService::setHdmiDRM(int drmMode)
-{
 }
 
 void ExynosHWCService::getHdmiResolution(uint32_t *width, uint32_t *height)

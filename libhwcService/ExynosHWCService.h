@@ -85,25 +85,9 @@ public:
     virtual void setHdmiCableStatus(int status);
     virtual void setHdmiMode(int mode);
     virtual void setHdmiHdcp(int status);
-    virtual void setHdmiDRM(bool status);
-    virtual void setHdmiHwcLayer(uint32_t hwcLayer);
-    virtual void setHdmiEnable(uint32_t enable);
-    virtual void setHdmiLayerEnable(uint32_t hdmiLayer);
-    virtual void setHdmiLayerDisable(uint32_t hdmiLayer);
     virtual void setHdmiAudioChannel(uint32_t channels);
     virtual void setHdmiSubtitles(bool use);
-    /*
-     * These functions may not be necessary
-     */
-    /* GPU does rotation now in normal scenarios */
-    virtual void setHdmiRotate(int rotVal, uint32_t hwcLayer);
-    /* We don't use writeback anymore */
-    virtual void setHdmiPath(int path);
-    /* Obsoleted by setProtectionMode */
-    virtual void setHdmiDRM(int drmMode);
-    /*
-     * End of possibly unnecessary functions
-     */
+
     virtual void getHdmiResolution(uint32_t *width, uint32_t *height);
     virtual uint32_t getHdmiCableStatus();
     virtual uint32_t getHdmiAudioChannel();

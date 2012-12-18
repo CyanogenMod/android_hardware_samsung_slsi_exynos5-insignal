@@ -25,7 +25,6 @@ exynos5_dirs := \
 	libswconverter \
 	libhwcService \
 	libhwc \
-	mobicore \
 	libkeymaster \
 	libsecurepath \
 	libcec

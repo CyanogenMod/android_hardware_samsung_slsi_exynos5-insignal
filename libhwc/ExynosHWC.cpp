@@ -1049,11 +1049,15 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
     if (numVideoLayers == 1) {
         for (int i = 0; i < contents->numHwLayers; i++) {
             hwc_layer_1_t &layer = contents->hwLayers[i];
+#if defined(HWC_SERVICES)
             if (!pdev->mUseSubtitles || i == videoIndex)
+#endif
                 layer.compositionType = HWC_OVERLAY;
             if (i == videoIndex) {
                 struct v4l2_rect dest_rect;
+#if defined(HWC_SERVICES)
                 if (pdev->mS3DMode == S3D_MODE_DISABLED) {
+#endif
                     hdmi_cal_dest_rect(WIDTH(layer.sourceCrop), HEIGHT(layer.sourceCrop),
                             pdev->hdmi_w, pdev->hdmi_h, &dest_rect);
 
@@ -1061,12 +1065,14 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                     layer.displayFrame.top = dest_rect.top;
                     layer.displayFrame.right = dest_rect.width + dest_rect.left;
                     layer.displayFrame.bottom = dest_rect.height + dest_rect.top;
+#if defined(HWC_SERVICES)
                 } else {
                     layer.displayFrame.left = 0;
                     layer.displayFrame.top = 0;
                     layer.displayFrame.right = pdev->hdmi_w;
                     layer.displayFrame.bottom = pdev->hdmi_h;
                 }
+#endif
             }
         }
     } else if (numVideoLayers > 1) {

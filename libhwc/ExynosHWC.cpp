@@ -321,6 +321,8 @@ static bool exynos5_supports_gscaler(hwc_layer_1_t &layer, int format,
 
 #ifdef SUPPORT_GSC_LOCAL_PATH
     int max_downscale = local_path ? loc_out_downscale : 16;
+    if (local_path && (handle->flags & GRALLOC_USAGE_PROTECTED))
+        return 0;
 #else
     int max_downscale = local_path ? 4 : 16;
 #endif
@@ -1035,6 +1037,19 @@ static int exynos5_prepare_fimd(exynos5_hwc_composer_device_1_t *pdev,
 #ifdef FORCEFB_YUVLAYER
     pdev->forcefb_yuvlayer = 0;
     pdev->configmode = 0;
+    /* check whether including the protected layer,
+     * if including the protected layer, use the GSC M2M
+     */
+    for (size_t i = 0; i < contents->numHwLayers; i++) {
+        hwc_layer_1_t &layer = contents->hwLayers[i];
+        if (layer.handle) {
+            private_handle_t *handle = private_handle_t::dynamicCast(layer.handle);
+            if (handle->flags & GRALLOC_USAGE_PROTECTED) {
+                ALOGV("included protected layer, should use GSC M2M");
+                goto retry;
+            }
+        }
+    }
     /*
      * check whether same config or different config,
      * should be waited until meeting the NUM_COFIG)STABLE

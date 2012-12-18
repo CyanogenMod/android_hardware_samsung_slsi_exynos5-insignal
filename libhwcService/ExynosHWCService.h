@@ -83,7 +83,6 @@ public:
 
     virtual void setHdmiResolution(int resolution, int s3dMode);
     virtual void setHdmiCableStatus(int status);
-    virtual void setHdmiMode(int mode);
     virtual void setHdmiHdcp(int status);
     virtual void setHdmiAudioChannel(uint32_t channels);
     virtual void setHdmiSubtitles(bool use);

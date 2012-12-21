@@ -2134,8 +2134,10 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 
 #if defined(GSC_VIDEO)
             private_handle_t *handle = private_handle_t::dynamicCast(layer.handle);
-            if ((int)get_yuv_planes(HAL_PIXEL_FORMAT_2_V4L2_PIX(handle->format)) < 0)
+            if ((int)get_yuv_planes(HAL_PIXEL_FORMAT_2_V4L2_PIX(handle->format)) < 0) {
+                layer.releaseFenceFd = layer.acquireFenceFd;
                 continue;
+            }
 #endif
 
             ALOGV("HDMI video layer:");

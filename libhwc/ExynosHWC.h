@@ -97,6 +97,7 @@ typedef enum _COMPOS_MODE_SWITCH {
 /* This value will be changed to 1080p if needed */
 #define EXYNOS5_WFD_DEFAULT_WIDTH       1280
 #define EXYNOS5_WFD_DEFAULT_HEIGHT      720
+#define EXYNOS5_WFD_FORMAT              HAL_PIXEL_FORMAT_YCbCr_420_SP
 #endif
 
 struct exynos5_hwc_composer_device_1_t;

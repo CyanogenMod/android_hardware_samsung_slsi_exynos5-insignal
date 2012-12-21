@@ -1712,8 +1712,12 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
                 gsc_data->dst_buf_fence[i] = -1;
             }
 
+            int format = HAL_PIXEL_FORMAT_RGBX_8888;
+#ifdef USES_WFD
+            format = (dst_format == EXYNOS5_WFD_FORMAT ? dst_format : format);
+#endif
             int ret = alloc_device->alloc(alloc_device, w, h,
-                    HAL_PIXEL_FORMAT_RGBX_8888, usage, &gsc_data->dst_buf[i],
+                    format, usage, &gsc_data->dst_buf[i],
                     &dst_stride);
             if (ret < 0) {
                 ALOGE("failed to allocate destination buffer: %s",
@@ -1731,6 +1735,10 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
     dst_cfg.fw = dst_handle->stride;
     dst_cfg.fh = dst_handle->vstride;
     dst_cfg.yaddr = dst_handle->fd;
+#ifdef USES_WFD
+    if (dst_format == EXYNOS5_WFD_FORMAT)
+        dst_cfg.uaddr = dst_handle->fd1;
+#endif
     dst_cfg.acquireFenceFd = gsc_data->dst_buf_fence[gsc_data->current_buf];
     gsc_data->dst_buf_fence[gsc_data->current_buf] = -1;
 
@@ -2246,8 +2254,26 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
             dump_layer(&layer);
 
             private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
-            hdmi_output(pdev, pdev->hdmi_layers[1], layer, h, layer.acquireFenceFd,
+#ifdef USES_WFD
+            if (pdev->wfd_enabled) {
+                exynos5_gsc_data_t &gsc = pdev->gsc[HDMI_GSC_IDX];
+                int ret = exynos5_config_gsc_m2m(layer, pdev->alloc_device, &gsc, HDMI_GSC_IDX,
+                       EXYNOS5_WFD_FORMAT, NULL);
+
+                if (ret < 0) {
+                    ALOGE("failed to configure gscaler for video layer");
+                    continue;
+                }
+
+                gsc.dst_buf_fence[gsc.current_buf] = gsc.dst_cfg.releaseFenceFd;
+                gsc.current_buf = (gsc.current_buf + 1) % NUM_GSC_DST_BUFS;
+            } else {
+#endif
+                hdmi_output(pdev, pdev->hdmi_layers[1], layer, h, layer.acquireFenceFd,
                                                              &layer.releaseFenceFd);
+#ifdef USES_WFD
+            }
+#endif
             fb_layer = &layer;
         }
     }

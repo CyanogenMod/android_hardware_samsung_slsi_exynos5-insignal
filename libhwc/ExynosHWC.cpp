@@ -385,6 +385,45 @@ bool hdmi_is_preset_supported(struct exynos5_hwc_composer_device_1_t *dev, int p
     return found;
 }
 
+#ifdef USES_WFD
+static int wfd_enable(struct exynos5_hwc_composer_device_1_t *dev)
+{
+    if (dev->wfd_enabled)
+        return 0;
+
+    if (dev->procs)
+        dev->procs->hotplug(dev->procs, HWC_DISPLAY_EXTERNAL, dev->wfd_hpd);
+
+    dev->wfd_enabled = true;
+    ALOGE("Wifi-Display is ON !!!");
+    return 0;
+}
+
+static void wfd_disable(struct exynos5_hwc_composer_device_1_t *dev)
+{
+    if (!dev->wfd_enabled)
+        return;
+
+    if (dev->procs)
+        dev->procs->hotplug(dev->procs, HWC_DISPLAY_EXTERNAL, dev->wfd_hpd);
+
+    dev->wfd_enabled = false;
+    ALOGE("Wifi-Display is OFF !!!");
+}
+
+void wfd_get_config(struct exynos5_hwc_composer_device_1_t *dev)
+{
+    if (dev->wfd_w == 0)
+        dev->wfd_w = EXYNOS5_WFD_DEFAULT_WIDTH;
+
+    if (dev->wfd_h == 0)
+        dev->wfd_h = EXYNOS5_WFD_DEFAULT_HEIGHT;
+
+    dev->hdmi_w = dev->wfd_w;
+    dev->hdmi_h = dev->wfd_h;
+}
+#endif
+
 int hdmi_get_config(struct exynos5_hwc_composer_device_1_t *dev)
 {
     struct v4l2_dv_preset preset;
@@ -1552,6 +1591,14 @@ static int exynos5_prepare(hwc_composer_device_1_t *dev,
 
     exynos5_hwc_composer_device_1_t *pdev =
             (exynos5_hwc_composer_device_1_t *)dev;
+
+#ifdef USES_WFD
+    if (pdev->wfd_hpd)
+         wfd_enable(pdev);
+    else
+        wfd_disable(pdev);
+#endif
+
     hwc_display_contents_1_t *fimd_contents = displays[HWC_DISPLAY_PRIMARY];
     hwc_display_contents_1_t *hdmi_contents = displays[HWC_DISPLAY_EXTERNAL];
 
@@ -2109,7 +2156,11 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
     hwc_layer_1_t *fb_layer = NULL;
     hwc_layer_1_t *video_layer = NULL;
 
+#ifdef USES_WFD
+    if (!pdev->hdmi_enabled && !pdev->wfd_enabled) {
+#else
     if (!pdev->hdmi_enabled) {
+#endif
         for (size_t i = 0; i < contents->numHwLayers; i++) {
             hwc_layer_1_t &layer = contents->hwLayers[i];
             if (layer.acquireFenceFd != -1) {
@@ -2627,6 +2678,14 @@ static int exynos5_blank(struct hwc_composer_device_1 *dev, int disp, int blank)
     }
 
     case HWC_DISPLAY_EXTERNAL:
+#ifdef USES_WFD
+        if (pdev->wfd_hpd) {
+            if (blank && !pdev->wfd_blanked)
+                wfd_disable(pdev);
+            pdev->wfd_blanked = !!blank;
+            break;
+        }
+#endif
         if (pdev->hdmi_hpd) {
             if (blank && !pdev->hdmi_blanked)
                 hdmi_disable(pdev);
@@ -2709,6 +2768,20 @@ static int exynos5_getDisplayConfigs(struct hwc_composer_device_1 *dev,
         *numConfigs = 1;
         return 0;
     } else if (disp == HWC_DISPLAY_EXTERNAL) {
+#ifdef USES_WFD
+        if (((!pdev->hdmi_hpd) && (!pdev->wfd_hpd)) ||
+            ((pdev->hdmi_hpd) && (pdev->wfd_hpd)))
+            return -EINVAL;
+
+        if (pdev->hdmi_hpd) {
+            int err = hdmi_get_config(pdev);
+            if (err)
+                return -EINVAL;
+        }
+
+        if (pdev->wfd_hpd)
+            wfd_get_config(pdev);
+#else
         if (!pdev->hdmi_hpd) {
             return -EINVAL;
         }
@@ -2717,7 +2790,7 @@ static int exynos5_getDisplayConfigs(struct hwc_composer_device_1 *dev,
         if (err) {
             return -EINVAL;
         }
-
+#endif
         configs[0] = 0;
         *numConfigs = 1;
         return 0;

@@ -2029,13 +2029,19 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 #if defined(HWC_SERVICES)
                 if (pdev->mS3DMode == S3D_MODE_DISABLED) {
 #endif
-                    hdmi_cal_dest_rect(WIDTH(layer.sourceCrop), HEIGHT(layer.sourceCrop),
-                            pdev->hdmi_w, pdev->hdmi_h, &dest_rect);
+                    bool rot90or270 = !!((pdev->hdmi_video_rotation) & HAL_TRANSFORM_ROT_90);
+                    if (rot90or270)
+                        hdmi_cal_dest_rect(HEIGHT(layer.sourceCrop), WIDTH(layer.sourceCrop),
+                                pdev->hdmi_w, pdev->hdmi_h, &dest_rect);
+                    else
+                        hdmi_cal_dest_rect(WIDTH(layer.sourceCrop), HEIGHT(layer.sourceCrop),
+                                pdev->hdmi_w, pdev->hdmi_h, &dest_rect);
 
                     layer.displayFrame.left = dest_rect.left;
                     layer.displayFrame.top = dest_rect.top;
                     layer.displayFrame.right = dest_rect.width + dest_rect.left;
                     layer.displayFrame.bottom = dest_rect.height + dest_rect.top;
+                    layer.transform = pdev->hdmi_video_rotation;
 #if defined(HWC_SERVICES)
                 } else {
                     layer.displayFrame.left = 0;
@@ -3638,6 +3644,7 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
 
     dev->force_mirror_mode = false;
     dev->use_blocking_layer = false;
+    dev->hdmi_video_rotation = 0;
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
     dev->composite_buf_index = 0;
 #endif

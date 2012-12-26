@@ -294,6 +294,7 @@ struct exynos5_hwc_composer_device_1_t {
 #endif
 
     bool                    force_mirror_mode;
+    int                     hdmi_video_rotation;    /* HAL_TRANSFORM_ROT_XXX */
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
     bool                    use_blocking_layer;
     int                     num_of_ext_disp_layer;

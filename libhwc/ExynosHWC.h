@@ -54,6 +54,7 @@
 #include "exynos_v4l2.h"
 #include "s5p_tvout_v4l2.h"
 #include "ExynosHWCModule.h"
+#include "ExynosRect.h"
 #include "videodev2.h"
 
 const size_t NUM_HW_WINDOWS = 5;
@@ -184,6 +185,20 @@ struct wfd_layer_t {
 };
 #endif
 
+#ifdef USE_GRALLOC_FLAG_FOR_HDMI
+#include "FimgApi.h"
+#define HWC_SKIP_HDMI_RENDERING 0x80000000
+
+const size_t NUM_COMPOSITE_BUFFER_FOR_EXTERNAL = 3;
+
+struct sec_rect {
+    int32_t x;
+    int32_t y;
+    int32_t w;
+    int32_t h;
+};
+#endif
+
 struct exynos5_hwc_composer_device_1_t {
     hwc_composer_device_1_t base;
 
@@ -242,7 +257,6 @@ struct exynos5_hwc_composer_device_1_t {
     bool mUseSubtitles;
     int video_playback_status;
 #endif
-    int force_mirror_mode;
 
 #ifdef HWC_DYNAMIC_RECOMPOSITION
     int VsyncInterruptStatus;
@@ -277,6 +291,22 @@ struct exynos5_hwc_composer_device_1_t {
     int                     gsc_use;
     video_layer_config      prev_src_config;
     video_layer_config      prev_dst_config;
+#endif
+
+    bool                    force_mirror_mode;
+#ifdef USE_GRALLOC_FLAG_FOR_HDMI
+    bool                    use_blocking_layer;
+    int                     num_of_ext_disp_layer;
+    int                     num_of_ext_disp_video_layer;
+    int                     num_of_ext_only_layer;
+    int                     num_of_ext_flexible_layer;
+
+    buffer_handle_t         composite_buffer_for_external[NUM_COMPOSITE_BUFFER_FOR_EXTERNAL];
+    size_t                  composite_buf_index;
+    int                     composite_buf_width;
+    int                     composite_buf_height;
+    struct sec_rect         saved_layer_for_external[4];
+    int                     saved_layer_count;
 #endif
 };
 

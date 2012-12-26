@@ -45,6 +45,12 @@ LOCAL_C_INCLUDES := \
 	$(TOP)/hardware/samsung_slsi/$(TARGET_SOC)/libhwcmodule \
 	$(TOP)/hardware/samsung_slsi/$(TARGET_BOARD_PLATFORM)/libcec
 
+ifeq ($(BOARD_USE_GRALLOC_FLAG_FOR_HDMI),true)
+	LOCAL_CFLAGS += -DUSE_GRALLOC_FLAG_FOR_HDMI
+	LOCAL_SHARED_LIBRARIES += libfimg
+	LOCAL_C_INCLUDES += $(TOP)/hardware/samsung_slsi/exynos/libfimg4x
+endif
+
 LOCAL_SRC_FILES := ExynosHWC.cpp
 
 LOCAL_MODULE := hwcomposer.$(TARGET_BOARD_PLATFORM)

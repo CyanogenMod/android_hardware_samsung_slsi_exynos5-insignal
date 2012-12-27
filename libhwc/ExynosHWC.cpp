@@ -1959,7 +1959,9 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 #else
                     if (h->flags & GRALLOC_USAGE_PROTECTED) {
 #endif
+#if !defined(GSC_VIDEO)
                             if (!video_layer) {
+#endif
                                 video_layer = &layer;
                                 layer.compositionType = HWC_OVERLAY;
 #if defined(GSC_VIDEO)
@@ -1969,7 +1971,9 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                                 ALOGV("\tlayer %u: video layer", i);
                                 dump_layer(&layer);
                                 continue;
+#if !defined(GSC_VIDEO)
                             }
+#endif
                     }
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
                     if (numVideoLayers <= 1) {
@@ -2056,6 +2060,9 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
     } else if (numVideoLayers > 1) {
         for (int i = 0; i < contents->numHwLayers; i++) {
             hwc_layer_1_t &layer = contents->hwLayers[i];
+            if (layer.compositionType == HWC_FRAMEBUFFER_TARGET ||
+                layer.compositionType == HWC_BACKGROUND)
+                continue;
             layer.compositionType = HWC_FRAMEBUFFER;
         }
     }

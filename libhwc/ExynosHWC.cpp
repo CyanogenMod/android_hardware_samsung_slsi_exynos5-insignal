@@ -181,6 +181,7 @@ static bool exynos5_format_is_supported_by_gscaler(int format)
     case HAL_PIXEL_FORMAT_RGBX_8888:
     case HAL_PIXEL_FORMAT_RGB_565:
     case HAL_PIXEL_FORMAT_EXYNOS_YV12:
+    case HAL_PIXEL_FORMAT_EXYNOS_YCrCb_420_SP:
     case HAL_PIXEL_FORMAT_YCbCr_420_SP:
     case HAL_PIXEL_FORMAT_YCbCr_420_SP_TILED:
         return true;

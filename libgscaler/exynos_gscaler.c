@@ -135,6 +135,7 @@ static unsigned int m_gsc_get_plane_size(
         plane_size[2] = 0;
         break;
     /* 3 planes */
+    case V4L2_PIX_FMT_YUV420M:
     case V4L2_PIX_FMT_YVU420M:
     case V4L2_PIX_FMT_YUV422P:
         plane_size[0] = width * height;

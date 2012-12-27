@@ -39,6 +39,8 @@ enum {
     SET_PROTECTION_MODE,
     SET_EXTERNAL_DISP_LAY_NUM,
     SET_FORCE_GPU,
+    SET_VIDEO_ROTATION,
+    GET_VIDEO_ROTATION,
     SET_HDMI_CABLE_STATUS,
     SET_HDMI_MODE,
     SET_HDMI_RESOLUTION,
@@ -163,6 +165,25 @@ public:
         data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
         data.writeInt32(on);
         int result = remote()->transact(SET_FORCE_GPU, data, &reply);
+        result = reply.readInt32();
+        return result;
+    }
+
+    virtual int setVideoRotation(unsigned int rotation_degree)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
+        data.writeInt32(rotation_degree);
+        int result = remote()->transact(SET_VIDEO_ROTATION, data, &reply);
+        result = reply.readInt32();
+        return result;
+    }
+
+    virtual int getVideoRotation(void)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
+        int result = remote()->transact(GET_VIDEO_ROTATION, data, &reply);
         result = reply.readInt32();
         return result;
     }
@@ -327,6 +348,19 @@ status_t BnExynosHWCService::onTransact(
             int on = data.readInt32();
             int res = setForceGPU(on);
             reply->writeInt32(res);
+            return NO_ERROR;
+        } break;
+        case SET_VIDEO_ROTATION: {
+            CHECK_INTERFACE(IExynosHWCService, data, reply);
+            int rotation_degree = data.readInt32();
+            int res = setVideoRotation(rotation_degree);
+            reply->writeInt32(res);
+            return NO_ERROR;
+        } break;
+        case GET_VIDEO_ROTATION: {
+            CHECK_INTERFACE(IExynosHWCService, data, reply);
+            int rotation_degree = getVideoRotation();
+            reply->writeInt32(rotation_degree);
             return NO_ERROR;
         } break;
         case SET_HDMI_RESOLUTION: {

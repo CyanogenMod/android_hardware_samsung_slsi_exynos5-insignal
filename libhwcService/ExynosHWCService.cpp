@@ -124,6 +124,44 @@ int ExynosHWCService::setForceGPU(unsigned int on)
     return NO_ERROR;
 }
 
+int ExynosHWCService::setVideoRotation(unsigned int rotation_degree)
+{
+    ALOGD_IF(HWC_SERVICE_DEBUG, "%s::rotation_degree=%d", __func__, rotation_degree);
+    rotation_degree %= 360;
+    if (rotation_degree == 0) {
+        mHWCCtx->hdmi_video_rotation = 0;
+    } else if (rotation_degree == 90) {
+        mHWCCtx->hdmi_video_rotation = HAL_TRANSFORM_ROT_90;
+    } else if (rotation_degree == 180) {
+        mHWCCtx->hdmi_video_rotation = HAL_TRANSFORM_ROT_180;
+    } else if (rotation_degree == 270) {
+        mHWCCtx->hdmi_video_rotation = HAL_TRANSFORM_ROT_270;
+    } else {
+        ALOGE("rotation_degree should be muptiple of 90(%d)", rotation_degree);
+        return -1;
+    }
+
+    mHWCCtx->procs->invalidate(mHWCCtx->procs);
+    return NO_ERROR;
+}
+
+int ExynosHWCService::getVideoRotation(void)
+{
+    ALOGD_IF(HWC_SERVICE_DEBUG, "%s", __func__);
+    if (mHWCCtx->hdmi_video_rotation == 0) {
+        return 0;
+    } else if (mHWCCtx->hdmi_video_rotation == HAL_TRANSFORM_ROT_90) {
+        return 90;
+    } else if (mHWCCtx->hdmi_video_rotation == HAL_TRANSFORM_ROT_180) {
+        return 180;
+    } else if (mHWCCtx->hdmi_video_rotation == HAL_TRANSFORM_ROT_270) {
+        return 270;
+    } else {
+        ALOGE("hdmi_video_rotation value does not meaningless(%d)", mHWCCtx->hdmi_video_rotation);
+        return -1;
+    }
+}
+
 void ExynosHWCService::setHdmiResolution(int resolution, int s3dMode)
 {
     if (resolution == 0)

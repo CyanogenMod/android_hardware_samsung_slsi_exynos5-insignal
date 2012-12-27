@@ -3643,9 +3643,9 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
     dev->force_gpu = atoi(value);
 
     dev->force_mirror_mode = false;
-    dev->use_blocking_layer = false;
     dev->hdmi_video_rotation = 0;
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
+    dev->use_blocking_layer = false;
     dev->composite_buf_index = 0;
 #endif
 

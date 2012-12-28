@@ -29,6 +29,10 @@ ifeq ($(BOARD_USES_HWC_SERVICES),true)
 ifeq ($(BOARD_USES_WFD),true)
 	LOCAL_CFLAGS += -DUSES_WFD
 endif
+
+ifeq ($(BOARD_USE_S3D_SUPPORT),true)
+	LOCAL_CFLAGS += -DS3D_SUPPORT
+endif
 endif
 
 ifeq ($(BOARD_USES_CEC),true)

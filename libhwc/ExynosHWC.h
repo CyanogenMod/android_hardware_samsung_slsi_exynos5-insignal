@@ -253,7 +253,9 @@ struct exynos5_hwc_composer_device_1_t {
     int mHdmiCurrentPreset;
     bool mHdmiResolutionChanged;
     bool mHdmiResolutionHandled;
+#if defined(S3D_SUPPORT)
     int mS3DMode;
+#endif
     bool mUseSubtitles;
     int video_playback_status;
 #endif

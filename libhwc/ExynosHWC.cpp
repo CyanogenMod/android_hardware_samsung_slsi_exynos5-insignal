@@ -3229,7 +3229,12 @@ static void *hwc_vsync_thread(void *data)
 
     while (true) {
 #if defined(USES_CEC)
-        int err = poll(fds, 3, -1);
+        int err;
+        fds[2].fd = pdev->mCecFd;
+        if (fds[2].fd > 0)
+            err = poll(fds, 3, -1);
+        else
+            err = poll(fds, 2, -1);
 #else
         int err = poll(fds, 2, -1);
 #endif
@@ -3649,6 +3654,8 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
 #if defined(USES_CEC)
     if (dev->hdmi_hpd)
         start_cec(dev);
+    else
+        dev->mCecFd = -1;
 #endif
 
     ret = pthread_create(&dev->vsync_thread, NULL, hwc_vsync_thread, dev);

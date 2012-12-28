@@ -189,7 +189,7 @@ struct wfd_layer_t {
 #include "FimgApi.h"
 #define HWC_SKIP_HDMI_RENDERING 0x80000000
 
-const size_t NUM_COMPOSITE_BUFFER_FOR_EXTERNAL = 3;
+const size_t NUM_COMPOSITE_BUFFER_FOR_EXTERNAL = 4;
 
 struct sec_rect {
     int32_t x;
@@ -305,11 +305,15 @@ struct exynos5_hwc_composer_device_1_t {
     int                     num_of_ext_flexible_layer;
 
     buffer_handle_t         composite_buffer_for_external[NUM_COMPOSITE_BUFFER_FOR_EXTERNAL];
+    unsigned long           va_composite_buffer_for_external[NUM_COMPOSITE_BUFFER_FOR_EXTERNAL]; /* mapped address */
     size_t                  composite_buf_index;
     int                     composite_buf_width;
     int                     composite_buf_height;
     struct sec_rect         saved_layer_for_external[4];
     int                     saved_layer_count;
+    bool                    is_change_external_surface;
+    private_handle_t        *prev_handle_external_surfaces[5];
+    private_handle_t        *prev_handle_flexible_surfaces[5];
 #endif
 };
 

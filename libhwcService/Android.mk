@@ -38,6 +38,10 @@ ifeq ($(BOARD_USES_WFD),true)
 	LOCAL_CFLAGS += -DUSES_WFD
 endif
 
+ifeq ($(BOARD_USE_S3D_SUPPORT),true)
+	LOCAL_CFLAGS += -DS3D_SUPPORT
+endif
+
 LOCAL_MODULE := libExynosHWCService
 LOCAL_MODULE_TAGS := optional
 include $(BUILD_SHARED_LIBRARY)

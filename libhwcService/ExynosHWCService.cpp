@@ -166,12 +166,16 @@ void ExynosHWCService::setHdmiResolution(int resolution, int s3dMode)
 {
     if (resolution == 0)
         resolution = mHWCCtx->mHdmiCurrentPreset;
-
+#if defined(S3D_SUPPORT)
     if (s3dMode == S3D_NONE) {
+#endif
+        if (mHWCCtx->mHdmiCurrentPreset == resolution)
+            return;
         mHWCCtx->mHdmiPreset = resolution;
         mHWCCtx->mHdmiResolutionChanged = true;
         mHWCCtx->procs->invalidate(mHWCCtx->procs);
         return;
+#if defined(S3D_SUPPORT)
     }
 
     switch (resolution) {
@@ -215,6 +219,7 @@ void ExynosHWCService::setHdmiResolution(int resolution, int s3dMode)
     mHWCCtx->mHdmiResolutionChanged = true;
     mHWCCtx->mS3DMode = S3D_MODE_READY;
     mHWCCtx->procs->invalidate(mHWCCtx->procs);
+#endif
 }
 
 void ExynosHWCService::setHdmiCableStatus(int status)

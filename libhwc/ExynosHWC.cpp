@@ -439,6 +439,7 @@ static void wfd_disable(struct exynos5_hwc_composer_device_1_t *dev)
 #ifdef USES_VIRTUAL_FB_FOR_WFD
     close(dev->wfd_output_layer.fd);
 #endif
+    exynos5_cleanup_gsc_m2m(dev, HDMI_GSC_IDX);
 
     dev->wfd_enabled = false;
     ALOGE("Wifi-Display is OFF !!!");
@@ -2836,7 +2837,8 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                 private_handle_t *dst_handle = private_handle_t::dynamicCast(dst_buf);
                 wfd_output(dst_handle, pdev);
 
-                gsc.dst_buf_fence[gsc.current_buf] = gsc.dst_cfg.releaseFenceFd;
+                if (gsc.dst_cfg.releaseFenceFd > 0)
+                    close(gsc.dst_cfg.releaseFenceFd);
                 gsc.current_buf = (gsc.current_buf + 1) % NUM_GSC_DST_BUFS;
             } else {
 #endif
@@ -2859,6 +2861,9 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 
     if (!video_layer) {
         hdmi_disable_layer(pdev, pdev->hdmi_layers[0]);
+#ifdef USES_WFD
+        if (!pdev->wfd_enabled)
+#endif
         exynos5_cleanup_gsc_m2m(pdev, HDMI_GSC_IDX);
 #if defined(S3D_SUPPORT)
         if (pdev->mS3DMode == S3D_MODE_RUNNING && contents->numHwLayers > 1) {

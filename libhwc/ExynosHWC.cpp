@@ -389,6 +389,9 @@ bool hdmi_is_preset_supported(struct exynos5_hwc_composer_device_1_t *dev, int p
 #ifdef USES_WFD
 static void wfd_output(private_handle_t *handle, exynos5_hwc_composer_device_1_t *pdev)
 {
+    pdev->wfd_buf_fd[0] = handle->fd;
+    pdev->wfd_buf_fd[1] = handle->fd1;
+
 #ifdef USES_VIRTUAL_FB_FOR_WFD
     struct s3cfb_extdsp_time_stamp wfd_fd;
 

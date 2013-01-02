@@ -232,6 +232,7 @@ struct exynos5_hwc_composer_device_1_t {
     int  wfd_w;
     int  wfd_h;
     wfd_layer_t             wfd_output_layer;
+    int  wfd_buf_fd[3];
 #endif
 
     hdmi_layer_t            hdmi_layers[2];

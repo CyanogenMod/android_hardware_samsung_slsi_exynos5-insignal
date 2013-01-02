@@ -72,6 +72,7 @@ public:
 
     virtual int  getWFDMode() = 0;
     virtual void getWFDOutputResolution(unsigned int *width, unsigned int *height) = 0;
+    virtual void getWFDOutputFD(int *fd1, int *fd2) = 0;
     virtual void getHdmiResolution(uint32_t *width, uint32_t *height) = 0;
     virtual uint32_t getHdmiCableStatus() = 0;
     virtual uint32_t getHdmiAudioChannel() = 0;

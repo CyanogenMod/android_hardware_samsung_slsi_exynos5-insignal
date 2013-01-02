@@ -56,6 +56,7 @@ enum {
     SET_HDMI_DRM,
     GET_WFD_MODE,
     GET_WFD_OUTPUT_RESOLUTION,
+    GET_WFD_OUTPUT_FD,
     GET_HDMI_CABLE_STATUS,
     GET_HDMI_RESOLUTION,
     GET_HDMI_AUDIO_CHANNEL,
@@ -247,6 +248,15 @@ public:
         *height = reply.readInt32();
     }
 
+    virtual void getWFDOutputFD(int *fd1, int *fd2)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
+        remote()->transact(GET_WFD_OUTPUT_FD, data, &reply);
+        *fd1 = dup(reply.readFileDescriptor());
+        *fd2 = dup(reply.readFileDescriptor());
+    }
+
     virtual void getHdmiResolution(uint32_t *width, uint32_t *height)
     {
         Parcel data, reply;
@@ -425,6 +435,14 @@ status_t BnExynosHWCService::onTransact(
             getWFDOutputResolution(&width, &height);
             reply->writeInt32(width);
             reply->writeInt32(height);
+            return NO_ERROR;
+        } break;
+        case GET_WFD_OUTPUT_FD: {
+            CHECK_INTERFACE(IExynosHWCService, data, reply);
+            int fd1, fd2;
+            getWFDOutputFD(&fd1, &fd2);
+            reply->writeFileDescriptor(fd1);
+            reply->writeFileDescriptor(fd2);
             return NO_ERROR;
         } break;
         default:

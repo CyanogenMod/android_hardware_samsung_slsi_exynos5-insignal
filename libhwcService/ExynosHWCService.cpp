@@ -266,6 +266,19 @@ void ExynosHWCService::getWFDOutputResolution(unsigned int *width, unsigned int 
 #endif
 }
 
+void ExynosHWCService::getWFDOutputFD(int *fd1, int *fd2)
+{
+#ifdef USES_WFD
+    if (mHWCCtx->wfd_enabled) {
+        *fd1 = mHWCCtx->wfd_buf_fd[0];
+        *fd2 = mHWCCtx->wfd_buf_fd[1];
+    } else {
+        *fd1 = -1;
+        *fd2 = -1;
+    }
+#endif
+}
+
 void ExynosHWCService::getHdmiResolution(uint32_t *width, uint32_t *height)
 {
     switch (mHWCCtx->mHdmiCurrentPreset) {

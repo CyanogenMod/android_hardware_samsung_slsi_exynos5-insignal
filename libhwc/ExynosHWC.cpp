@@ -1956,7 +1956,8 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 #endif
 
 #if defined(GSC_VIDEO)
-                    if ((h->flags & GRALLOC_USAGE_PROTECTED) || (h->flags & GRALLOC_USAGE_EXTERNAL_DISP)) {
+                    if (((h->flags & GRALLOC_USAGE_PROTECTED) || (h->flags & GRALLOC_USAGE_EXTERNAL_DISP)) &&
+                        exynos5_supports_gscaler(layer, h->format, false)) {
 #else
                     if (h->flags & GRALLOC_USAGE_PROTECTED) {
 #endif

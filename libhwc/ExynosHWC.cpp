@@ -246,6 +246,18 @@ static bool dst_crop_w_aligned(int dest_w)
     return (dest_w % dst_crop_w_alignement) == 0;
 }
 
+static uint32_t exynos5_format_to_gsc_format(int format)
+{
+    switch (format) {
+    case HAL_PIXEL_FORMAT_RGBA_8888:
+        return HAL_PIXEL_FORMAT_BGRA_8888;
+    case HAL_PIXEL_FORMAT_BGRA_8888:
+        return HAL_PIXEL_FORMAT_RGBA_8888;
+    default:
+        return format;
+    }
+}
+
 #ifdef SUPPORT_GSC_LOCAL_PATH
 static int exynos5_gsc_out_down_scl_ratio(int xres, int yres)
 {
@@ -387,10 +399,17 @@ bool hdmi_is_preset_supported(struct exynos5_hwc_composer_device_1_t *dev, int p
 }
 
 #ifdef USES_WFD
-static void wfd_output(private_handle_t *handle, exynos5_hwc_composer_device_1_t *pdev)
+static void wfd_output(buffer_handle_t buf, exynos5_hwc_composer_device_1_t *pdev,
+        exynos5_gsc_data_t *gsc)
 {
+    private_handle_t *handle = private_handle_t::dynamicCast(buf);
+
     pdev->wfd_buf_fd[0] = handle->fd;
     pdev->wfd_buf_fd[1] = handle->fd1;
+
+    if (gsc->dst_cfg.releaseFenceFd > 0)
+        close(gsc->dst_cfg.releaseFenceFd);
+    gsc->current_buf = (gsc->current_buf + 1) % NUM_GSC_DST_BUFS;
 }
 
 static int wfd_enable(struct exynos5_hwc_composer_device_1_t *dev)
@@ -2079,6 +2098,61 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
     return 0;
 }
 
+#ifdef USES_WFD
+static int exynos5_prepare_wfd(exynos5_hwc_composer_device_1_t *pdev,
+        hwc_display_contents_1_t* contents)
+{
+    ALOGV("preparing %u layers for WFD", contents->numHwLayers);
+    hwc_layer_1_t *video_layer = NULL;
+
+    for (size_t i = 0; i < contents->numHwLayers; i++) {
+        hwc_layer_1_t &layer = contents->hwLayers[i];
+
+        if (layer.compositionType == HWC_FRAMEBUFFER_TARGET) {
+            ALOGV("\tlayer %u: framebuffer target", i);
+            continue;
+        }
+
+        if (layer.compositionType == HWC_BACKGROUND) {
+            ALOGV("\tlayer %u: background layer", i);
+            dump_layer(&layer);
+            continue;
+        }
+
+        if (layer.handle) {
+            private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
+
+            if ((h->flags & GRALLOC_USAGE_EXTERNAL_DISP) &&
+                (exynos5_supports_gscaler(layer, h->format, pdev))) {
+
+                if (!video_layer) {
+                    video_layer = &layer;
+                    layer.compositionType = HWC_OVERLAY;
+
+                    struct v4l2_rect dest_rect;
+
+                    hdmi_cal_dest_rect(WIDTH(layer.sourceCrop), HEIGHT(layer.sourceCrop),
+                            pdev->wfd_w, pdev->wfd_h, &dest_rect);
+                    layer.displayFrame.left = dest_rect.left;
+                    layer.displayFrame.top = dest_rect.top;
+                    layer.displayFrame.right = dest_rect.width + dest_rect.left;
+                    layer.displayFrame.bottom = dest_rect.height + dest_rect.top;
+
+                    ALOGV("\tlayer %u: video layer", i);
+                    dump_layer(&layer);
+                    continue;
+                }
+            }
+        }
+
+        layer.compositionType = HWC_FRAMEBUFFER;
+        dump_layer(&layer);
+    }
+
+    return 0;
+}
+#endif
+
 static int exynos5_prepare(hwc_composer_device_1_t *dev,
         size_t numDisplays, hwc_display_contents_1_t** displays)
 {
@@ -2116,7 +2190,13 @@ static int exynos5_prepare(hwc_composer_device_1_t *dev,
     }
 
     if (hdmi_contents) {
-        int err = exynos5_prepare_hdmi(pdev, hdmi_contents);
+        int err = 0;
+#ifdef USES_WFD
+        if (pdev->wfd_enabled)
+            err = exynos5_prepare_wfd(pdev, hdmi_contents);
+        else
+#endif
+            err = exynos5_prepare_hdmi(pdev, hdmi_contents);
         if (err)
             return err;
     }
@@ -2161,7 +2241,7 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
         src_cfg.uaddr = src_handle->fd1;
         src_cfg.vaddr = src_handle->fd2;
     }
-    src_cfg.format = src_handle->format;
+    src_cfg.format = exynos5_format_to_gsc_format(src_handle->format);
     src_cfg.drmMode = !!(src_handle->flags & GRALLOC_USAGE_PROTECTED);
     src_cfg.acquireFenceFd = layer.acquireFenceFd;
     src_cfg.mem_type = GSC_MEM_DMABUF;
@@ -2194,8 +2274,14 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
         if (src_handle->flags & GRALLOC_USAGE_PROTECTED)
             usage |= GRALLOC_USAGE_PROTECTED;
 
-        int w = ALIGN(dst_cfg.w, GSC_DST_W_ALIGNMENT_RGB888);
-        int h = ALIGN(dst_cfg.h, GSC_DST_H_ALIGNMENT_RGB888);
+        int w, h;
+        if (dst_format == EXYNOS5_WFD_FORMAT) {
+            w = ALIGN(dst_cfg.w, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
+            h = ALIGN(dst_cfg.h, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
+        } else {
+            w = ALIGN(dst_cfg.w, GSC_DST_W_ALIGNMENT_RGB888);
+            h = ALIGN(dst_cfg.h, GSC_DST_H_ALIGNMENT_RGB888);
+        }
 
         for (size_t i = 0; i < NUM_GSC_DST_BUFS; i++) {
             if (gsc_data->dst_buf[i]) {
@@ -2862,7 +2948,7 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 
                 buffer_handle_t dst_buf = gsc.dst_buf[gsc.current_buf];
                 private_handle_t *dst_handle = private_handle_t::dynamicCast(dst_buf);
-                wfd_output(dst_handle, pdev);
+                wfd_output(dst_buf, pdev, &gsc);
 
                 if (gsc.dst_cfg.releaseFenceFd > 0)
                     close(gsc.dst_cfg.releaseFenceFd);
@@ -2919,6 +3005,74 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
     return 0;
 }
 
+#ifdef USES_WFD
+static int exynos5_set_wfd(exynos5_hwc_composer_device_1_t *pdev,
+        hwc_display_contents_1_t* contents)
+{
+    hwc_layer_1_t *overlay_layer = NULL;
+    hwc_layer_1_t *target_layer = NULL;
+
+    if (!pdev->wfd_enabled) {
+        for (size_t i = 0; i < contents->numHwLayers; i++) {
+            hwc_layer_1_t &layer = contents->hwLayers[i];
+            if (layer.acquireFenceFd != -1) {
+                close(layer.acquireFenceFd);
+                layer.acquireFenceFd = -1;
+            }
+        }
+        return 0;
+    }
+
+    for (size_t i = 0; i < contents->numHwLayers; i++) {
+        hwc_layer_1_t &layer = contents->hwLayers[i];
+        private_handle_t *src_handle = private_handle_t::dynamicCast(layer.handle);
+
+        if (layer.flags & HWC_SKIP_LAYER) {
+            ALOGV("WFD skipping layer %d", i);
+            continue;
+        }
+
+        if (layer.compositionType == HWC_OVERLAY) {
+             if (!layer.handle)
+                 continue;
+
+            ALOGV("WFD overlay layer:");
+            dump_layer(&layer);
+
+            overlay_layer = &layer;
+        }
+
+        if (layer.compositionType == HWC_FRAMEBUFFER_TARGET) {
+            if (!layer.handle)
+                continue;
+
+            ALOGV("WFD FB target layer:");
+            dump_layer(&layer);
+
+            target_layer = &layer;
+        }
+    }
+
+    if (overlay_layer || target_layer) {
+        exynos5_gsc_data_t &gsc = pdev->gsc[HDMI_GSC_IDX];
+        overlay_layer = overlay_layer == NULL? target_layer : overlay_layer;
+        int ret = exynos5_config_gsc_m2m(*overlay_layer, pdev->alloc_device, &gsc,
+                      HDMI_GSC_IDX, EXYNOS5_WFD_FORMAT, NULL);
+        if (ret < 0) {
+            ALOGE("failed to configure gscaler for WFD layer");
+            return ret;
+        }
+        pdev->wfd_w = ALIGN(gsc.dst_cfg.w, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
+        pdev->wfd_h = ALIGN(gsc.dst_cfg.h, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
+
+        buffer_handle_t dst_buf = gsc.dst_buf[gsc.current_buf];
+        wfd_output(dst_buf, pdev, &gsc);
+    }
+
+    return 0;
+}
+#endif
+
 static int exynos5_set(struct hwc_composer_device_1 *dev,
         size_t numDisplays, hwc_display_contents_1_t** displays)
 {
@@ -2938,8 +3092,14 @@ static int exynos5_set(struct hwc_composer_device_1 *dev,
     if (fimd_contents)
         fimd_err = exynos5_set_fimd(pdev, fimd_contents);
 
-    if (hdmi_contents)
+    if (hdmi_contents) {
+#ifdef USES_WFD
+        if (pdev->wfd_enabled)
+            hdmi_err = exynos5_set_wfd(pdev, hdmi_contents);
+        else
+#endif
         hdmi_err = exynos5_set_hdmi(pdev, hdmi_contents);
+    }
 #if defined(HWC_SERVICES)
 #if defined(S3D_SUPPORT)
     if (pdev->mS3DMode != S3D_MODE_STOPPING && !pdev->mHdmiResolutionHandled) {

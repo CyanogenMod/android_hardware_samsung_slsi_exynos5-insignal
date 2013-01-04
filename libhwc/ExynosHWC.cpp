@@ -2756,11 +2756,7 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
     bool need_clear_composite_buffer = true;
 #endif
 
-#ifdef USES_WFD
-    if (!pdev->hdmi_enabled && !pdev->wfd_enabled) {
-#else
     if (!pdev->hdmi_enabled) {
-#endif
         for (size_t i = 0; i < contents->numHwLayers; i++) {
             hwc_layer_1_t &layer = contents->hwLayers[i];
             if (layer.acquireFenceFd != -1) {
@@ -2938,31 +2934,8 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
             dump_layer(&layer);
 
             private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
-#ifdef USES_WFD
-            if (pdev->wfd_enabled) {
-                exynos5_gsc_data_t &gsc = pdev->gsc[HDMI_GSC_IDX];
-                int ret = exynos5_config_gsc_m2m(layer, pdev->alloc_device, &gsc, HDMI_GSC_IDX,
-                       EXYNOS5_WFD_FORMAT, NULL);
-
-                if (ret < 0) {
-                    ALOGE("failed to configure gscaler for video layer");
-                    continue;
-                }
-
-                buffer_handle_t dst_buf = gsc.dst_buf[gsc.current_buf];
-                private_handle_t *dst_handle = private_handle_t::dynamicCast(dst_buf);
-                wfd_output(dst_buf, pdev, &gsc);
-
-                if (gsc.dst_cfg.releaseFenceFd > 0)
-                    close(gsc.dst_cfg.releaseFenceFd);
-                gsc.current_buf = (gsc.current_buf + 1) % NUM_GSC_DST_BUFS;
-            } else {
-#endif
-                hdmi_output(pdev, pdev->hdmi_layers[1], layer, h, layer.acquireFenceFd,
+            hdmi_output(pdev, pdev->hdmi_layers[1], layer, h, layer.acquireFenceFd,
                         &layer.releaseFenceFd);
-#ifdef USES_WFD
-            }
-#endif
             fb_layer = &layer;
         }
     }
@@ -2977,9 +2950,6 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 
     if (!video_layer) {
         hdmi_disable_layer(pdev, pdev->hdmi_layers[0]);
-#ifdef USES_WFD
-        if (!pdev->wfd_enabled)
-#endif
         exynos5_cleanup_gsc_m2m(pdev, HDMI_GSC_IDX);
 #if defined(S3D_SUPPORT)
         if (pdev->mS3DMode == S3D_MODE_RUNNING && contents->numHwLayers > 1) {

@@ -100,17 +100,6 @@ typedef enum _COMPOS_MODE_SWITCH {
 #define EXYNOS5_WFD_DEFAULT_HEIGHT      720
 #define EXYNOS5_WFD_FORMAT              HAL_PIXEL_FORMAT_YCbCr_420_SP
 
-#define USES_VIRTUAL_FB_FOR_WFD
-#ifdef USES_VIRTUAL_FB_FOR_WFD
-struct s3cfb_extdsp_time_stamp {
-    int     y_fd;
-    int     uv_fd;
-    struct timeval  time_marker;
-};
-#define EXYNOS5_WFD_FB_DEV              "/dev/graphics/fb1"
-#define S3CFB_EXTDSP_SET_WIN_ADDR       _IOW ('F', 308, int)
-#define S3CFB_EXTDSP_PUT_TIME_STAMP     _IOW ('F', 323, struct s3cfb_extdsp_time_stamp)
-#endif
 #endif
 
 struct exynos5_hwc_composer_device_1_t;

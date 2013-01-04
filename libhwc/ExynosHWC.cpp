@@ -391,37 +391,12 @@ static void wfd_output(private_handle_t *handle, exynos5_hwc_composer_device_1_t
 {
     pdev->wfd_buf_fd[0] = handle->fd;
     pdev->wfd_buf_fd[1] = handle->fd1;
-
-#ifdef USES_VIRTUAL_FB_FOR_WFD
-    struct s3cfb_extdsp_time_stamp wfd_fd;
-
-    wfd_fd.y_fd  = handle->fd;
-    wfd_fd.uv_fd = handle->fd1;
-
-    ALOGE("WFD_INFO: yaddr=%d, u_addr=%d)", wfd_fd.y_fd, wfd_fd.uv_fd);
-
-    if (ioctl(pdev->wfd_output_layer.fd, S3CFB_EXTDSP_PUT_TIME_STAMP, &(wfd_fd)) < 0)
-        ALOGE("S3CFB_EXTDSP_PUT_TIME_STAMP fail(yaddr=%d, u_addr=%d)", wfd_fd.y_fd, wfd_fd.uv_fd);
-
-    if (ioctl(pdev->wfd_output_layer.fd, S3CFB_EXTDSP_SET_WIN_ADDR, wfd_fd.y_fd) < 0)
-        ALOGE("S3CFB_EXTDSP_SET_WIN_ADDR fail(err=%d)", strerror(errno));
-#endif
 }
 
 static int wfd_enable(struct exynos5_hwc_composer_device_1_t *dev)
 {
     if (dev->wfd_enabled)
         return 0;
-
-#ifdef USES_VIRTUAL_FB_FOR_WFD
-    dev->wfd_output_layer.fd = open(EXYNOS5_WFD_FB_DEV, O_RDWR);
-    if (dev->wfd_output_layer.fd < 0) {
-        ALOGE("failed to open wifi-display output buffer");
-        return -EBUSY;
-    } else {
-        ALOGI("open [%s] is successful", EXYNOS5_WFD_FB_DEV);
-    }
-#endif
 
     if (dev->procs)
         dev->procs->hotplug(dev->procs, HWC_DISPLAY_EXTERNAL, dev->wfd_hpd);
@@ -439,9 +414,6 @@ static void wfd_disable(struct exynos5_hwc_composer_device_1_t *dev)
     if (dev->procs)
         dev->procs->hotplug(dev->procs, HWC_DISPLAY_EXTERNAL, dev->wfd_hpd);
 
-#ifdef USES_VIRTUAL_FB_FOR_WFD
-    close(dev->wfd_output_layer.fd);
-#endif
     exynos5_cleanup_gsc_m2m(dev, HDMI_GSC_IDX);
 
     dev->wfd_enabled = false;

@@ -42,6 +42,9 @@ endif
 
 ifeq ($(BOARD_USES_GSC_VIDEO),true)
 	LOCAL_CFLAGS += -DGSC_VIDEO
+
+ifeq ($(BOARD_USES_FB_PHY_LINEAR),true)
+	LOCAL_CFLAGS += -DUSE_FB_PHY_LINEAR
 endif
 
 LOCAL_CFLAGS += -DLOG_TAG=\"hwcomposer\"

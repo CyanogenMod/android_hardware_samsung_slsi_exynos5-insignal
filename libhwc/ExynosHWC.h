@@ -56,7 +56,9 @@
 #include "ExynosHWCModule.h"
 #include "ExynosRect.h"
 #include "videodev2.h"
-
+#ifdef USE_FB_PHY_LINEAR
+const size_t NUM_HW_WIN_FB_PHY = 2;
+#endif
 const size_t NUM_HW_WINDOWS = 5;
 const size_t NO_FB_NEEDED = NUM_HW_WINDOWS + 1;
 const size_t MAX_PIXELS = 2560 * 1600 * 2;

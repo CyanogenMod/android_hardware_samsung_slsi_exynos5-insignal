@@ -1344,12 +1344,21 @@ bool exynos5_supports_overlay(hwc_layer_1_t &layer, size_t i,
 #ifdef SUPPORT_GSC_LOCAL_PATH
         if (!exynos5_supports_gscaler(pdev, layer, handle->format, false, 1)) {
 #else
+#ifdef USE_FB_PHY_LINEAR
+    if (layer.displayFrame.left < 0 || layer.displayFrame.top < 0 ||
+        layer.displayFrame.right > pdev->xres || layer.displayFrame.bottom > pdev->yres)
+        return false;
+#endif
+
         if (!exynos5_supports_gscaler(layer, handle->format, false)) {
 #endif
             ALOGV("\tlayer %u: gscaler required but not supported", i);
             return false;
         }
     } else {
+#ifdef USE_FB_PHY_LINEAR
+        return false;
+#endif
         if (!exynos5_format_is_supported(handle->format)) {
             ALOGV("\tlayer %u: pixel format %u not supported", i, handle->format);
             return false;
@@ -1587,12 +1596,21 @@ retry:
             fb_rect.right = pdev->xres - 1;
             fb_rect.bottom = pdev->yres - 1;
             pixels_left = MAX_PIXELS - pdev->xres * pdev->yres;
+#ifdef USE_FB_PHY_LINEAR
+            windows_left = NUM_HW_WIN_FB_PHY - 1;
+#else
             windows_left = NUM_HW_WINDOWS - 1;
+#endif
+
             rects.push_back(fb_rect);
         }
         else {
             pixels_left = MAX_PIXELS;
+#ifdef USE_FB_PHY_LINEAR
+            windows_left = 1;
+#else
             windows_left = NUM_HW_WINDOWS;
+#endif
         }
 
         changed = false;
@@ -2385,6 +2403,9 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
         int dst_stride;
         int usage = GRALLOC_USAGE_SW_READ_NEVER |
                 GRALLOC_USAGE_SW_WRITE_NEVER |
+#ifdef USE_FB_PHY_LINEAR
+                ((gsc_idx == FIMD_GSC_IDX) ? GRALLOC_USAGE_HW_FB_PHY_LINEAR : 0) |
+#endif
                 GRALLOC_USAGE_HW_COMPOSER;
 
         if (src_handle->flags & GRALLOC_USAGE_PROTECTED)

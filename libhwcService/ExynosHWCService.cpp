@@ -42,6 +42,7 @@ int ExynosHWCService::setWFDMode(unsigned int mode)
 #ifdef USES_WFD
     if (mHWCCtx->hdmi_hpd != true) {
         mHWCCtx->wfd_hpd = !!mode;
+        mHWCCtx->procs->invalidate(mHWCCtx->procs);
     } else {
         /* HDMI and WFD runs exclusively */
         ALOGE_IF(HWC_SERVICE_DEBUG, "External Display was already enabled as HDMI.");

@@ -1806,6 +1806,7 @@ static int exynos5_config_gsc_localout(exynos5_hwc_composer_device_1_t *pdev,
 #ifdef GSC_OUT_WA
             ret = exynos_gsc_stop_exclusive(gsc_data->gsc);
             pdev->need_reqbufs = true;
+            pdev->count_sameconfig = 0;
 #else
             ret = exynos_gsc_stop_exclusive(gsc_data->gsc);
 #endif
@@ -2650,6 +2651,7 @@ static int exynos5_post_fimd(exynos5_hwc_composer_device_1_t *pdev,
 #ifdef GSC_OUT_WA
             exynos_gsc_stop_exclusive(pdev->gsc[0].gsc);
             pdev->need_reqbufs = true;
+            pdev->count_sameconfig = 0;
             pdev->gsc[FIMD_GSC_IDX].gsc_mode = exynos5_gsc_map_t::GSC_NONE;
 #else
             exynos_gsc_destroy(pdev->gsc[FIMD_GSC_IDX].gsc);
@@ -3500,6 +3502,22 @@ static int exynos5_blank(struct hwc_composer_device_1 *dev, int disp, int blank)
     switch (disp) {
     case HWC_DISPLAY_PRIMARY: {
         int fb_blank = blank ? FB_BLANK_POWERDOWN : FB_BLANK_UNBLANK;
+#ifdef SUPPORT_GSC_LOCAL_PATH
+        if (pdev->gsc_use && (fb_blank == FB_BLANK_POWERDOWN)) {
+            if (pdev->gsc[FIMD_GSC_IDX].gsc_mode == exynos5_gsc_map_t::GSC_LOCAL) {
+#ifdef GSC_OUT_WA
+                exynos_gsc_stop_exclusive(pdev->gsc[FIMD_GSC_IDX].gsc);
+                pdev->need_reqbufs = true;
+                pdev->count_sameconfig = 0;
+                pdev->gsc[FIMD_GSC_IDX].gsc_mode = exynos5_gsc_map_t::GSC_NONE;
+#else
+                exynos_gsc_destroy(pdev->gsc[FIMD_GSC_IDX].gsc);
+                pdev->gsc[FIMD_GSC_IDX].gsc = NULL;
+                pdev->gsc[FIMD_GSC_IDX].gsc_mode = exynos5_gsc_map_t::GSC_NONE;
+#endif
+            }
+        }
+#endif
         int err = ioctl(pdev->fd, FBIOBLANK, fb_blank);
         if (err < 0) {
             if (errno == EBUSY)

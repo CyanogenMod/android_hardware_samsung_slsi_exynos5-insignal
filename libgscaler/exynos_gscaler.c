@@ -62,6 +62,7 @@ static unsigned int m_gsc_get_plane_count(
     case V4L2_PIX_FMT_UYVY:
     case V4L2_PIX_FMT_NV16:
     case V4L2_PIX_FMT_NV61:
+    case V4L2_PIX_FMT_YVU420:
         plane_count = 1;
         break;
     case V4L2_PIX_FMT_NV12M:
@@ -142,6 +143,11 @@ static unsigned int m_gsc_get_plane_size(
         plane_size[1] = (width / 2) * (height / 2);
         plane_size[2] = (width / 2) * (height / 2);
         break;
+    case V4L2_PIX_FMT_YVU420:
+        plane_size[0] = ALIGN(width, 16) * height + ALIGN(width / 2, 16) * height;
+        plane_size[1] = 0;
+        plane_size[2] = 0;
+        break;
     default:
         ALOGE("%s::unmatched v4l_pixel_format color_space(0x%x)\n",
              __func__, v4l_pixel_format);
@@ -197,6 +203,7 @@ static bool m_exynos_gsc_check_src_size(
     // YUV420
     case V4L2_PIX_FMT_YUV420M:
     case V4L2_PIX_FMT_YVU420M:
+    case V4L2_PIX_FMT_YVU420:
     case V4L2_PIX_FMT_NV12M:
     case V4L2_PIX_FMT_NV12MT:
     case V4L2_PIX_FMT_NV21:
@@ -275,6 +282,7 @@ static bool m_exynos_gsc_check_dst_size(
     case V4L2_PIX_FMT_NV21M:
     case V4L2_PIX_FMT_YUV420M:
     case V4L2_PIX_FMT_YVU420M:
+    case V4L2_PIX_FMT_YVU420:
         *new_w = m_exynos_gsc_multiple_of_n(*new_w, 2);
         *new_h = m_exynos_gsc_multiple_of_n(*new_h, 2);
         break;

@@ -180,6 +180,7 @@ struct wfd_layer_t {
 #define HWC_SKIP_HDMI_RENDERING 0x80000000
 
 const size_t NUM_COMPOSITE_BUFFER_FOR_EXTERNAL = 4;
+const size_t NUM_BUFFER_U4A = 3;
 
 struct sec_rect {
     int32_t x;
@@ -187,6 +188,20 @@ struct sec_rect {
     int32_t w;
     int32_t h;
 };
+
+struct s3cfb_user_window {
+    int x;
+    int y;
+};
+
+struct s3cfb_extdsp_time_stamp {
+    int     y_fd;
+    int     uv_fd;
+    struct timeval  time_marker;
+};
+
+#define EXYNOS5_U4A_FB_DEV              "/dev/graphics/fb1"
+#define S3CFB_EXTDSP_PUT_FD             _IOW ('F', 323, struct s3cfb_extdsp_time_stamp)
 #endif
 
 struct exynos5_hwc_composer_device_1_t {
@@ -305,6 +320,10 @@ struct exynos5_hwc_composer_device_1_t {
     bool                    is_change_external_surface;
     private_handle_t        *prev_handle_external_surfaces[5];
     private_handle_t        *prev_handle_flexible_surfaces[5];
+    bool                    already_mapped_vfb;
+    int                     vfb_fd;
+    int                     surface_fd_for_vfb[NUM_BUFFER_U4A];  /* for ubuntu */
+    int                     num_of_ext_vfb_layer;
 #endif
 };
 

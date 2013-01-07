@@ -1878,6 +1878,7 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
     pdev->num_of_ext_flexible_layer = 0;
     int used_layer_count = 0;
     pdev->is_change_external_surface = false;
+    pdev->num_of_ext_vfb_layer = 0;
 
     /* summerize layer`s information */
     for (size_t i = 0; i < contents->numHwLayers; i++) {
@@ -1886,6 +1887,7 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
             private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
             if ((h->flags & GRALLOC_USAGE_EXTERNAL_DISP) ||
                 (h->flags & GRALLOC_USAGE_EXTERNAL_ONLY) ||
+                (h->flags & GRALLOC_USAGE_EXTERNAL_VIRTUALFB) ||
                 (h->flags & GRALLOC_USAGE_EXTERNAL_FLEXIBLE)) {
                 pdev->num_of_ext_disp_layer++;
                 if (h->flags & GRALLOC_USAGE_EXTERNAL_ONLY) {
@@ -1900,6 +1902,8 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                         pdev->is_change_external_surface = true;
                     }
                     pdev->num_of_ext_flexible_layer++;
+                } else if (h->flags & GRALLOC_USAGE_EXTERNAL_VIRTUALFB) {
+                    pdev->num_of_ext_vfb_layer++;
                 }
             }
             if (h->flags & GRALLOC_USAGE_EXTERNAL_BLOCK)
@@ -1940,6 +1944,32 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 #endif
                 /* EXTENTION mode */
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
+                if (pdev->num_of_ext_vfb_layer) {
+                    if (h->flags & GRALLOC_USAGE_EXTERNAL_VIRTUALFB) {
+                        if (!pdev->already_mapped_vfb) {
+                            struct s3cfb_extdsp_time_stamp time_stamp;
+                            if (pdev->surface_fd_for_vfb[0] == -1) {
+                                pdev->surface_fd_for_vfb[0] = h->fd;
+                            } else if (pdev->surface_fd_for_vfb[1] == -1) {
+                                pdev->surface_fd_for_vfb[1] = h->fd;
+                            } else if (pdev->surface_fd_for_vfb[2] == -1) {
+                                pdev->surface_fd_for_vfb[2] = h->fd;
+                                pdev->already_mapped_vfb = true;
+                            }
+                            time_stamp.y_fd = h->fd;
+                            time_stamp.uv_fd = -1;
+                            if (ioctl(pdev->vfb_fd, S3CFB_EXTDSP_PUT_FD, &(time_stamp)) < 0) {
+                                ALOGE("%s::S3CFB_EXTDSP_PUT_FD fail", __func__);
+                            }
+                        }
+                        layer.compositionType = HWC_OVERLAY;
+                    } else {
+                        /* SKIP HDMI rendering others */
+                        layer.compositionType = HWC_OVERLAY;
+                        layer.flags = HWC_SKIP_HDMI_RENDERING;
+                    }
+                    continue;
+                }
                 /* if there is a blocking_layer, only display it, others ignore */
                 if (pdev->use_blocking_layer) {
                     if (h->flags & GRALLOC_USAGE_EXTERNAL_BLOCK) {
@@ -2858,7 +2888,27 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
             }
 
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
-            if (h->flags & GRALLOC_USAGE_EXTERNAL_FLEXIBLE) {
+            if (h->flags & GRALLOC_USAGE_EXTERNAL_VIRTUALFB) {
+                struct fb_var_screeninfo info;
+                if (ioctl(pdev->vfb_fd, FBIOGET_VSCREENINFO, &info) == -1)
+                    ALOGE("FBIOGET_VSCREENINFO ioctl failed: %s", strerror(errno));
+
+                private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
+                hwc_layer_1_t dst_layer;
+                dst_layer.displayFrame.left = 0;
+                dst_layer.displayFrame.right = pdev->hdmi_w;
+                dst_layer.displayFrame.top = 0;
+                dst_layer.displayFrame.bottom = pdev->hdmi_h;
+                layer.releaseFenceFd = layer.acquireFenceFd;
+
+                int index = info.yoffset / HEIGHT(dst_layer.displayFrame);
+                int surface_fd = pdev->surface_fd_for_vfb[index];
+                if ((index < NUM_BUFFER_U4A) && surface_fd != -1) {
+                    h->fd = surface_fd;
+                    hdmi_output(pdev, pdev->hdmi_layers[0], dst_layer, h, -1, NULL);
+                }
+                video_layer = &layer;
+            } else if (h->flags & GRALLOC_USAGE_EXTERNAL_FLEXIBLE) {
                 if (pdev->is_change_external_surface) {
                     if (video_layer) {
                         /* if subtitle , it use directyly use fb layer */
@@ -3846,6 +3896,54 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
     }
     dev->composite_buf_width  = 0;
     dev->composite_buf_height = 0;
+    dev->already_mapped_vfb = false;
+
+    struct fb_var_screeninfo var_info;
+    struct s3cfb_user_window window;
+    int vfb_fd;
+    vfb_fd = open(EXYNOS5_U4A_FB_DEV, O_RDWR);
+
+    if (vfb_fd <= 0) {
+        ALOGD("%s::Failed to open window device (%s) : %s",
+                __func__, strerror(errno), name);
+        goto err_vsync;
+    }
+
+    if (ioctl(vfb_fd, FBIOGET_VSCREENINFO, &var_info) < 0) {
+        ALOGD("FBIOGET_VSCREENINFO failed : %s",
+                strerror(errno));
+        goto err_vsync;
+    }
+
+    var_info.xres_virtual = 1920;
+    var_info.yres_virtual = 1080 * 3;
+    var_info.xres = 1920;
+    var_info.yres = 1080;
+    var_info.bits_per_pixel = 32;
+    var_info.xoffset = 0;
+    var_info.yoffset = 0;
+    var_info.transp.length = 8;
+    var_info.activate &= ~FB_ACTIVATE_MASK;
+    var_info.activate |= FB_ACTIVATE_FORCE;
+
+    if (ioctl(vfb_fd, FBIOPUT_VSCREENINFO, &(var_info)) < 0) {
+        ALOGD("FBIOPUT_VSCREENINFO failed : %s",
+                strerror(errno));
+        goto err_vsync;
+    }
+
+    window.x = 0;
+    window.y = 0;
+
+    if (ioctl(vfb_fd, S3CFB_WIN_POSITION, &window) < 0) {
+        ALOGD("%s::S3CFB_WIN_POSITION(%d, %d) fail",
+                __func__, window.x, window.y);
+        goto err_vsync;
+    }
+
+    dev->vfb_fd = vfb_fd;
+    for (int i=0; i < NUM_BUFFER_U4A; i++)
+        dev->surface_fd_for_vfb[i] = -1;
 #endif
 
 #ifdef HWC_DYNAMIC_RECOMPOSITION

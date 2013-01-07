@@ -2275,10 +2275,13 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
             usage |= GRALLOC_USAGE_PROTECTED;
 
         int w, h;
+#if USES_WFD
         if (dst_format == EXYNOS5_WFD_FORMAT) {
             w = ALIGN(dst_cfg.w, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
             h = ALIGN(dst_cfg.h, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
-        } else {
+        } else
+#endif
+        {
             w = ALIGN(dst_cfg.w, GSC_DST_W_ALIGNMENT_RGB888);
             h = ALIGN(dst_cfg.h, GSC_DST_H_ALIGNMENT_RGB888);
         }

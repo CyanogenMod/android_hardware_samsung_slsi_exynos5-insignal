@@ -1941,7 +1941,12 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
             /* IF MIRROR mode, all surfaces use G3D composition */
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
             if (pdev->force_mirror_mode) {
-                layer.compositionType = HWC_FRAMEBUFFER;
+                if (h->flags & GRALLOC_USAGE_INTERNAL_ONLY) {
+                    layer.compositionType = HWC_OVERLAY;
+                    layer.flags = HWC_SKIP_HDMI_RENDERING;
+                } else {
+                    layer.compositionType = HWC_FRAMEBUFFER;
+                }
                 continue;
             } else {
 #endif

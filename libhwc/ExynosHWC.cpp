@@ -402,12 +402,17 @@ bool hdmi_is_preset_supported(struct exynos5_hwc_composer_device_1_t *dev, int p
 
 #ifdef USES_WFD
 static void wfd_output(buffer_handle_t buf, exynos5_hwc_composer_device_1_t *pdev,
-        exynos5_gsc_data_t *gsc)
+        exynos5_gsc_data_t *gsc, hwc_layer_1_t &layer)
 {
+    private_handle_t *src_handle = private_handle_t::dynamicCast(layer.handle);
     private_handle_t *handle = private_handle_t::dynamicCast(buf);
 
     pdev->wfd_buf_fd[0] = handle->fd;
     pdev->wfd_buf_fd[1] = handle->fd1;
+
+    pdev->wfd_info.isPresentation = !!pdev->force_mirror_mode;
+    pdev->wfd_info.isDrm = !!(src_handle->flags & GRALLOC_USAGE_PROTECTED);
+    gettimeofday(&pdev->wfd_info.tv_stamp, NULL);
 
     if (gsc->dst_cfg.releaseFenceFd > 0)
         close(gsc->dst_cfg.releaseFenceFd);
@@ -2218,8 +2223,8 @@ static int exynos5_prepare_wfd(exynos5_hwc_composer_device_1_t *pdev,
         if (layer.handle) {
             private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
 
-            if ((h->flags & GRALLOC_USAGE_EXTERNAL_DISP) &&
-                (exynos5_supports_gscaler(layer, h->format, pdev))) {
+            if ((h->flags & GRALLOC_USAGE_PROTECTED) || (h->flags & GRALLOC_USAGE_EXTERNAL_DISP) &&
+                (exynos5_supports_gscaler(layer, h->format, false))) {
 
                 if (!video_layer) {
                     video_layer = &layer;
@@ -3175,7 +3180,7 @@ static int exynos5_set_wfd(exynos5_hwc_composer_device_1_t *pdev,
         pdev->wfd_h = ALIGN(gsc.dst_cfg.h, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
 
         buffer_handle_t dst_buf = gsc.dst_buf[gsc.current_buf];
-        wfd_output(dst_buf, pdev, &gsc);
+        wfd_output(dst_buf, pdev, &gsc, *overlay_layer);
     }
 
     return 0;

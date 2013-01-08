@@ -167,14 +167,6 @@ struct hdmi_layer_t {
     size_t  queued_buf;
 };
 
-#ifdef USES_WFD
-struct wfd_layer_t {
-    int     fd;
-    bool    enabled;
-    exynos_gsc_img  cfg;
-};
-#endif
-
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
 #include "FimgApi.h"
 #define HWC_SKIP_HDMI_RENDERING 0x80000000
@@ -243,8 +235,8 @@ struct exynos5_hwc_composer_device_1_t {
     bool wfd_blanked;
     int  wfd_w;
     int  wfd_h;
-    wfd_layer_t             wfd_output_layer;
     int  wfd_buf_fd[3];
+    struct wfd_layer_t      wfd_info;
 #endif
 
     hdmi_layer_t            hdmi_layers[2];

@@ -24,6 +24,12 @@
 #include <utils/RefBase.h>
 #include <binder/IInterface.h>
 
+struct wfd_layer_t {
+    bool   isPresentation;
+    bool   isDrm;
+    struct timeval tv_stamp;
+};
+
 namespace android {
 
 enum {
@@ -73,7 +79,7 @@ public:
 
     virtual int  getWFDMode() = 0;
     virtual void getWFDOutputResolution(unsigned int *width, unsigned int *height) = 0;
-    virtual void getWFDOutputFD(int *fd1, int *fd2) = 0;
+    virtual void getWFDOutputInfo(int *fd1, int *fd2, struct wfd_layer_t *wfd_info) = 0;
     virtual void getHdmiResolution(uint32_t *width, uint32_t *height) = 0;
     virtual uint32_t getHdmiCableStatus() = 0;
     virtual uint32_t getHdmiAudioChannel() = 0;

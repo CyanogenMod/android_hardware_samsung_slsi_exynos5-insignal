@@ -1938,9 +1938,17 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
              *       not be modified/removed at a later time
              */
 
+#ifdef USE_GRALLOC_FLAG_FOR_HDMI
+            if (pdev->external_display_pause) {
+                layer.compositionType = HWC_OVERLAY;
+                layer.flags = HWC_SKIP_HDMI_RENDERING;
+                continue;
+            }
+#endif
+
             /* IF MIRROR mode, all surfaces use G3D composition */
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
-            if (pdev->force_mirror_mode) {
+            else if (pdev->force_mirror_mode) {
                 if (h->flags & GRALLOC_USAGE_INTERNAL_ONLY) {
                     layer.compositionType = HWC_OVERLAY;
                     layer.flags = HWC_SKIP_HDMI_RENDERING;
@@ -3911,6 +3919,7 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
 
     dev->force_mirror_mode = false;
     dev->hdmi_video_rotation = 0;
+    dev->external_display_pause = false;
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
     dev->use_blocking_layer = false;
     dev->composite_buf_index = 0;

@@ -39,6 +39,11 @@ ifeq ($(BOARD_USES_CEC),true)
 	LOCAL_SHARED_LIBRARIES += libcec
 	LOCAL_CFLAGS += -DUSES_CEC
 endif
+
+ifeq ($(BOARD_USES_GSC_VIDEO),true)
+	LOCAL_CFLAGS += -DGSC_VIDEO
+endif
+
 LOCAL_CFLAGS += -DLOG_TAG=\"hwcomposer\"
 
 LOCAL_C_INCLUDES := \

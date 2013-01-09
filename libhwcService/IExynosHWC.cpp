@@ -35,6 +35,7 @@ enum {
     SET_CAMERA_MODE,
     SET_FORCE_MIRROR_MODE,
     SET_VIDEO_PLAY_STATUS,
+    SET_EXTERNAL_DISPLAY_PAUSE,
     SET_DISPLAY_ORIENTATION,
     SET_PROTECTION_MODE,
     SET_EXTERNAL_DISP_LAY_NUM,
@@ -126,6 +127,16 @@ public:
         data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
         data.writeInt32(mode);
         int result = remote()->transact(SET_VIDEO_PLAY_STATUS, data, &reply);
+        result = reply.readInt32();
+        return result;
+    }
+
+    virtual int setExternalDisplayPause(bool onoff)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
+        data.writeInt32(onoff);
+        int result = remote()->transact(SET_EXTERNAL_DISPLAY_PAUSE, data, &reply);
         result = reply.readInt32();
         return result;
     }
@@ -329,6 +340,13 @@ status_t BnExynosHWCService::onTransact(
             CHECK_INTERFACE(IExynosHWCService, data, reply);
             int mode = data.readInt32();
             int res = setVideoPlayStatus(mode);
+            reply->writeInt32(res);
+            return NO_ERROR;
+        } break;
+        case SET_EXTERNAL_DISPLAY_PAUSE: {
+            CHECK_INTERFACE(IExynosHWCService, data, reply);
+            bool onoff = data.readInt32();
+            int res = setExternalDisplayPause(onoff);
             reply->writeInt32(res);
             return NO_ERROR;
         } break;

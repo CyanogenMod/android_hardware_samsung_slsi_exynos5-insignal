@@ -57,6 +57,7 @@ public:
      * pause status.
      */
     virtual int setVideoPlayStatus(unsigned int mode) = 0;
+    virtual int setExternalDisplayPause(bool onoff) = 0;
     virtual int setDispOrientation(unsigned int transform) = 0;
     virtual int setProtectionMode(unsigned int mode) = 0;
     virtual int setExternalDispLayerNum(unsigned int num) = 0;

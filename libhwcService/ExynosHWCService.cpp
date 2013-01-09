@@ -99,6 +99,15 @@ int ExynosHWCService::setVideoPlayStatus(unsigned int status)
     return NO_ERROR;
 }
 
+int ExynosHWCService::setExternalDisplayPause(bool onoff)
+{
+    ALOGD_IF(HWC_SERVICE_DEBUG, "%s::onoff=%d", __func__, onoff);
+    if (mHWCCtx)
+        mHWCCtx->external_display_pause = onoff;
+
+    return NO_ERROR;
+}
+
 int ExynosHWCService::setDispOrientation(unsigned int transform)
 {
     ALOGD_IF(HWC_SERVICE_DEBUG, "%s::mode=%x", __func__, transform);

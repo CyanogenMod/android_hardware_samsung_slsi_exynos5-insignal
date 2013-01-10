@@ -202,6 +202,13 @@ struct s3cfb_extdsp_time_stamp {
 
 #define EXYNOS5_U4A_FB_DEV              "/dev/graphics/fb1"
 #define S3CFB_EXTDSP_PUT_FD             _IOW ('F', 323, struct s3cfb_extdsp_time_stamp)
+
+struct FB_TARGET_Info {
+    int32_t         fd;
+    unsigned int    mapped_addr;
+    int             map_size;
+};
+#define NUM_FB_TARGET 4
 #endif
 
 struct exynos5_hwc_composer_device_1_t {
@@ -325,6 +332,7 @@ struct exynos5_hwc_composer_device_1_t {
     int                     vfb_fd;
     int                     surface_fd_for_vfb[NUM_BUFFER_U4A];  /* for ubuntu */
     int                     num_of_ext_vfb_layer;
+    struct FB_TARGET_Info   fb_target_info[NUM_FB_TARGET];
 #endif
 };
 

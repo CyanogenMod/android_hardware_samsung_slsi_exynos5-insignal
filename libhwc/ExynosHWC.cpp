@@ -728,7 +728,7 @@ int runCompositor(exynos5_hwc_composer_device_1_t *pdev,
 
 static unsigned long get_mapped_addr_fb_target(exynos5_hwc_composer_device_1_t *pdev, int fd)
 {
-    for(int i=0; i<NUM_FB_TARGET; i++) {
+    for (int i = 0; i < NUM_FB_TARGET; i++) {
         if (pdev->fb_target_info[i].fd == fd)
             return pdev->fb_target_info[i].mapped_addr;
 
@@ -959,7 +959,7 @@ static void hdmi_disable(struct exynos5_hwc_composer_device_1_t *dev)
         dev->composite_buffer_for_external[i] = NULL;
     }
 
-    for(int i=0; i<NUM_FB_TARGET; i++) {
+    for (int i = 0; i < NUM_FB_TARGET; i++) {
         if (dev->fb_target_info[i].fd != -1) {
             ion_unmap((void *)dev->fb_target_info[i].mapped_addr, dev->fb_target_info[i].map_size);
             dev->fb_target_info[i].fd = -1;
@@ -4026,10 +4026,10 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
     }
 
     dev->vfb_fd = vfb_fd;
-    for (int i=0; i < NUM_BUFFER_U4A; i++)
+    for (int i = 0; i < NUM_BUFFER_U4A; i++)
         dev->surface_fd_for_vfb[i] = -1;
 
-    for(int i=0; i<NUM_FB_TARGET; i++) {
+    for (int i = 0; i < NUM_FB_TARGET; i++) {
         dev->fb_target_info[i].fd = -1;
         dev->fb_target_info[i].mapped_addr = NULL;
         dev->fb_target_info[i].map_size = 0;
@@ -4098,7 +4098,7 @@ static int exynos5_close(hw_device_t *device)
         dev->composite_buffer_for_external[i] = NULL;
     }
 
-    for(int i=0; i<NUM_FB_TARGET; i++) {
+    for (int i = 0; i < NUM_FB_TARGET; i++) {
         if (dev->fb_target_info[i].fd != -1) {
             ion_unmap((void *)dev->fb_target_info[i].mapped_addr, dev->fb_target_info[i].map_size);
             dev->fb_target_info[i].fd = -1;

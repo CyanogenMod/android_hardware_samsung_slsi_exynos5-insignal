@@ -2152,12 +2152,14 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 #if defined(HWC_SERVICES)
             if (!pdev->mUseSubtitles || i == videoIndex) {
 #endif
+#ifdef USE_GRALLOC_FLAG_FOR_HDMI
                 if (i == videoIndex) {
                     layer.compositionType = HWC_OVERLAY;
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
                     layer.flags &= ~HWC_SKIP_HDMI_RENDERING;
-#endif
                 }
+#else
+                layer.compositionType = HWC_OVERLAY;
+#endif
 #if defined(HWC_SERVICES)
             }
 #endif

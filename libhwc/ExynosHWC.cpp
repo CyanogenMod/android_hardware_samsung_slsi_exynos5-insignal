@@ -1930,8 +1930,11 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
         hwc_layer_1_t &layer = contents->hwLayers[i];
         if (layer.handle) {
             private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
-            if ((h->flags & GRALLOC_USAGE_EXTERNAL_DISP) ||
-                (h->flags & GRALLOC_USAGE_EXTERNAL_ONLY) ||
+
+            if ((h->flags & GRALLOC_USAGE_EXTERNAL_ONLY) ||
+#if defined(GSC_VIDEO)
+                (h->flags & GRALLOC_USAGE_EXTERNAL_DISP) ||
+#endif
                 (h->flags & GRALLOC_USAGE_EXTERNAL_VIRTUALFB) ||
                 (h->flags & GRALLOC_USAGE_EXTERNAL_FLEXIBLE)) {
                 pdev->num_of_ext_disp_layer++;
@@ -2094,7 +2097,9 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 #endif
                     }
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
+#if defined(GSC_VIDEO)
                     if (numVideoLayers <= 1) {
+#endif
                         if (pdev->num_of_ext_only_layer || pdev->num_of_ext_flexible_layer) {
                             /* this surface will display external with scaling */
                             if (h->flags & GRALLOC_USAGE_EXTERNAL_ONLY) {
@@ -2131,9 +2136,12 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                                 layer.compositionType = HWC_FRAMEBUFFER;
                             }
                         }
+
+#if defined(GSC_VIDEO)
                     } else {
                         layer.compositionType = HWC_FRAMEBUFFER;
                     }
+#endif
 #endif
 
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
@@ -2226,6 +2234,7 @@ static int exynos5_prepare_wfd(exynos5_hwc_composer_device_1_t *pdev,
             continue;
         }
 
+#if defined(GSC_VIDEO)
         if (layer.handle) {
             private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
 
@@ -2251,7 +2260,7 @@ static int exynos5_prepare_wfd(exynos5_hwc_composer_device_1_t *pdev,
                 }
             }
         }
-
+#endif
         layer.compositionType = HWC_FRAMEBUFFER;
         dump_layer(&layer);
     }

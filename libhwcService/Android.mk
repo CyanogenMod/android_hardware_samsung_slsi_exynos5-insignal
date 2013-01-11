@@ -42,6 +42,10 @@ ifeq ($(BOARD_USE_S3D_SUPPORT),true)
 	LOCAL_CFLAGS += -DS3D_SUPPORT
 endif
 
+ifeq ($(BOARD_USES_CEC),true)
+	LOCAL_CFLAGS += -DUSES_CEC
+endif
+
 LOCAL_MODULE := libExynosHWCService
 LOCAL_MODULE_TAGS := optional
 include $(BUILD_SHARED_LIBRARY)

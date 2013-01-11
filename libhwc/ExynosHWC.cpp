@@ -321,19 +321,6 @@ static bool exynos5_supports_gscaler(hwc_layer_1_t &layer, int format,
     // n.b.: HAL_TRANSFORM_ROT_270 = HAL_TRANSFORM_ROT_90 |
     //                               HAL_TRANSFORM_ROT_180
 
-#ifdef SUPPORT_GSC_LOCAL_PATH
-    if (local_path && rot90or270)
-        return 0;
-    /*
-     * if display co-ordinates are out of the lcd resolution,
-     * skip that scenario to OpenGL.
-     * GSC OTF can't handle such scenarios.
-     */
-    if (layer.displayFrame.left < 0 || layer.displayFrame.top < 0 ||
-        layer.displayFrame.right > pdev->xres || layer.displayFrame.bottom > pdev->yres)
-        return 0;
-#endif
-
     int src_w = WIDTH(layer.sourceCrop), src_h = HEIGHT(layer.sourceCrop);
     int dest_w, dest_h;
     if (rot90or270) {
@@ -350,13 +337,45 @@ static bool exynos5_supports_gscaler(hwc_layer_1_t &layer, int format,
 
 #ifdef SUPPORT_GSC_LOCAL_PATH
     int max_downscale = local_path ? loc_out_downscale : 16;
-    if (local_path && (exynos5_get_drmMode(handle->flags) == SECURE_DRM))
-        return 0;
 #else
     int max_downscale = local_path ? 4 : 16;
 #endif
     const int max_upscale = 8;
 
+#ifdef SUPPORT_GSC_LOCAL_PATH
+    /* check whether GSC can handle with local path */
+    if (local_path) {
+        /* GSC OTF can't handle rot90 or rot270 */
+        if (rot90or270)
+            return 0;
+        /*
+         * if display co-ordinates are out of the lcd resolution,
+         * skip that scenario to OpenGL.
+         * GSC OTF can't handle such scenarios.
+         */
+        if (layer.displayFrame.left < 0 || layer.displayFrame.top < 0 ||
+            layer.displayFrame.right > pdev->xres || layer.displayFrame.bottom > pdev->yres)
+            return 0;
+
+        /* GSC OTF can't handle GRALLOC_USAGE_PROTECTED layer */
+        if (exynos5_get_drmMode(handle->flags) == SECURE_DRM)
+            return 0;
+
+        return exynos5_format_is_supported_by_gscaler(format) &&
+            exynos5_format_is_supported_gsc_local(format) &&
+            handle->stride <= max_w &&
+            src_w <= dest_w * max_downscale &&
+            dest_w <= src_w * max_upscale &&
+            handle->vstride <= max_h &&
+            src_h <= dest_h * max_downscale &&
+            dest_h <= src_h * max_upscale &&
+            // per 46.2
+            (dest_w % 2 == 0) &&
+            (dest_h % 2 == 0);
+     }
+#endif
+
+    /* check whether GSC can handle with M2M */
     return exynos5_format_is_supported_by_gscaler(format) &&
             dst_crop_w_aligned(dest_w) &&
             handle->stride <= max_w &&
@@ -1357,7 +1376,10 @@ bool exynos5_supports_overlay(hwc_layer_1_t &layer, size_t i,
     }
     if (exynos5_requires_gscaler(layer, handle->format)) {
 #ifdef SUPPORT_GSC_LOCAL_PATH
-        if (!exynos5_supports_gscaler(pdev, layer, handle->format, false, 1)) {
+        int down_ratio = exynos5_gsc_out_down_scl_ratio(pdev->xres, pdev->yres);
+        /* Check whether GSC can handle using local or M2M */
+        if (!((exynos5_supports_gscaler(pdev, layer, handle->format, false, down_ratio)) ||
+            (exynos5_supports_gscaler(pdev, layer, handle->format, true, down_ratio)))) {
 #else
 #ifdef USE_FB_PHY_LINEAR
     if (layer.displayFrame.left < 0 || layer.displayFrame.top < 0 ||

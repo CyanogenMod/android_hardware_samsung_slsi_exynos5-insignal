@@ -280,7 +280,7 @@ void ExynosHWCService::getWFDOutputInfo(int *fd1, int *fd2, struct wfd_layer_t *
 {
 #ifdef USES_WFD
     if (mHWCCtx->wfd_enabled) {
-        *fd1 = mHWCCtx->wfd_buf_fd[0];
+        *fd1 = mHWCCtx->wfd_locked_fd = mHWCCtx->wfd_buf_fd[0];
         *fd2 = mHWCCtx->wfd_buf_fd[1];
         wfd_info = &mHWCCtx->wfd_info;
     } else {

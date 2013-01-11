@@ -417,6 +417,9 @@ static void wfd_output(buffer_handle_t buf, exynos5_hwc_composer_device_1_t *pde
     if (gsc->dst_cfg.releaseFenceFd > 0)
         close(gsc->dst_cfg.releaseFenceFd);
     gsc->current_buf = (gsc->current_buf + 1) % NUM_GSC_DST_BUFS;
+    private_handle_t *next_h = private_handle_t::dynamicCast(gsc->dst_buf[gsc->current_buf]);
+    if (next_h->fd == pdev->wfd_locked_fd)
+        gsc->current_buf = (gsc->current_buf + 1) % NUM_GSC_DST_BUFS;
 }
 
 static int wfd_enable(struct exynos5_hwc_composer_device_1_t *dev)
@@ -440,6 +443,7 @@ static void wfd_disable(struct exynos5_hwc_composer_device_1_t *dev)
     if (dev->procs)
         dev->procs->hotplug(dev->procs, HWC_DISPLAY_EXTERNAL, dev->wfd_hpd);
 
+    dev->wfd_locked_fd = -1;
     exynos5_cleanup_gsc_m2m(dev, HDMI_GSC_IDX);
 
     dev->wfd_enabled = false;

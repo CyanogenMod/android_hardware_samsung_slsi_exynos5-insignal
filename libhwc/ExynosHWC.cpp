@@ -1455,6 +1455,66 @@ static bool exynos5_compare_yuvlayer_config(hwc_layer_1_t &layer,
 }
 #endif
 
+#ifdef SKIP_STATIC_LAYER_COMP
+static void exynos5_skip_static_layers(exynos5_hwc_composer_device_1_t *pdev,
+        hwc_display_contents_1_t* contents)
+{
+    static int init_flag = 0;
+    int last_ovly_lay_idx = -1;
+
+    pdev->virtual_ovly_flag = 0;
+    pdev->last_ovly_win_idx = -1;
+    if (contents->flags & HWC_GEOMETRY_CHANGED) {
+        init_flag = 0;
+        return;
+    }
+
+    for (size_t i = 0; i < NUM_HW_WINDOWS; i++) {
+        if (pdev->bufs.overlay_map[i] != -1) {
+            last_ovly_lay_idx = pdev->bufs.overlay_map[i];
+            pdev->last_ovly_win_idx = i;
+            break;
+        }
+    }
+
+    if ((last_ovly_lay_idx == -1) || (last_ovly_lay_idx >= (contents->numHwLayers - 2)) ||
+        ((contents->numHwLayers - last_ovly_lay_idx - 1) >= NUM_VIRT_OVER)) {
+        init_flag = 0;
+        return;
+    }
+    pdev->last_ovly_lay_idx = last_ovly_lay_idx;
+    last_ovly_lay_idx++;
+    if (init_flag == 1) {
+        for (size_t i = last_ovly_lay_idx; i < contents->numHwLayers -1; i++) {
+            hwc_layer_1_t &layer = contents->hwLayers[i];
+            if (!layer.handle || (pdev->last_lay_hnd[i - last_ovly_lay_idx] !=  layer.handle)) {
+                init_flag = 0;
+                return;
+            }
+        }
+
+        pdev->virtual_ovly_flag = 1;
+        for (size_t i = last_ovly_lay_idx; i < contents->numHwLayers-1; i++) {
+            hwc_layer_1_t &layer = contents->hwLayers[i];
+            if (layer.compositionType == HWC_FRAMEBUFFER)
+                layer.compositionType = HWC_OVERLAY;
+        }
+        return;
+    }
+
+    init_flag = 1;
+    for (size_t i = last_ovly_lay_idx; i < contents->numHwLayers; i++) {
+        hwc_layer_1_t &layer = contents->hwLayers[i];
+        pdev->last_lay_hnd[i - last_ovly_lay_idx] = layer.handle;
+    }
+
+    for (size_t i = contents->numHwLayers - last_ovly_lay_idx; i < NUM_VIRT_OVER; i++)
+        pdev->last_lay_hnd[i - last_ovly_lay_idx] = 0;
+
+    return;
+}
+#endif
+
 static int exynos5_prepare_fimd(exynos5_hwc_composer_device_1_t *pdev,
         hwc_display_contents_1_t* contents)
 {
@@ -1754,6 +1814,11 @@ retry:
             nextWindow++;
         }
     }
+#ifdef SKIP_STATIC_LAYER_COMP
+    exynos5_skip_static_layers(pdev, contents);
+    if (pdev->virtual_ovly_flag)
+        fb_needed = 0;
+#endif
 
 #ifdef FORCEFB_YUVLAYER
     pdev->gsc_use = gsc_used;
@@ -2762,6 +2827,19 @@ static int exynos5_post_fimd(exynos5_hwc_composer_device_1_t *pdev,
             pdev->gsc[FIMD_GSC_IDX].gsc = NULL;
             pdev->gsc[FIMD_GSC_IDX].gsc_mode = exynos5_gsc_map_t::GSC_NONE;
 #endif
+        }
+    }
+#endif
+
+#ifdef SKIP_STATIC_LAYER_COMP
+    if (pdev->virtual_ovly_flag) {
+        memcpy(&win_data.config[pdev->last_ovly_win_idx + 1],
+            &pdev->last_config[pdev->last_ovly_win_idx + 1], sizeof(struct s3c_fb_win_config));
+        win_data.config[pdev->last_ovly_win_idx + 1].fence_fd = -1;
+        for (size_t i = pdev->last_ovly_lay_idx + 1; i < contents->numHwLayers; i++) {
+            hwc_layer_1_t &layer = contents->hwLayers[i];
+            if (layer.compositionType == HWC_OVERLAY)
+              layer.releaseFenceFd = layer.acquireFenceFd;
         }
     }
 #endif

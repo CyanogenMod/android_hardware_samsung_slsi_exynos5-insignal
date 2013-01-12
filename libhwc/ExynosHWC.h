@@ -77,7 +77,12 @@ const size_t NUM_GSC_UNITS = sizeof(AVAILABLE_GSC_UNITS) /
 const size_t BURSTLEN_BYTES = 16 * 8;
 const size_t NUM_HDMI_BUFFERS = 3;
 #define DIRECT_FB_SRC_BUF_WA
-
+#ifdef USE_FB_PHY_LINEAR
+#define SKIP_STATIC_LAYER_COMP
+#ifdef SKIP_STATIC_LAYER_COMP
+#define NUM_VIRT_OVER   5
+#endif
+#endif
 #ifdef HWC_SERVICES
 #include "../libhwcService/ExynosHWCService.h"
 namespace android {
@@ -250,6 +255,12 @@ struct exynos5_hwc_composer_device_1_t {
     size_t                  last_fb_window;
     const void              *last_handles[NUM_HW_WINDOWS];
     exynos5_gsc_map_t       last_gsc_map[NUM_HW_WINDOWS];
+#ifdef SKIP_STATIC_LAYER_COMP
+    const void              *last_lay_hnd[NUM_VIRT_OVER];
+    int                     last_ovly_win_idx;
+    int                     last_ovly_lay_idx;
+    int                     virtual_ovly_flag;
+#endif
 #ifdef HWC_SERVICES
 
 #define S3D_ERROR -1

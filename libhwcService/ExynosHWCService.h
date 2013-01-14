@@ -90,10 +90,12 @@ public:
     virtual void setHdmiHdcp(int status);
     virtual void setHdmiAudioChannel(uint32_t channels);
     virtual void setHdmiSubtitles(bool use);
+    virtual void setPresentationMode(bool use);
 
     virtual int getWFDMode();
     virtual void getWFDOutputResolution(unsigned int *width, unsigned int *height);
     virtual void getWFDOutputInfo(int *fd1, int *fd2, struct wfd_layer_t *wfd_info);
+    virtual int getPresentationMode(void);
     virtual void getHdmiResolution(uint32_t *width, uint32_t *height);
     virtual uint32_t getHdmiCableStatus();
     virtual uint32_t getHdmiAudioChannel();

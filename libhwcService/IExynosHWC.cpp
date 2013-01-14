@@ -55,9 +55,11 @@ enum {
     SET_HDMI_ROTATE,
     SET_HDMI_PATH,
     SET_HDMI_DRM,
+    SET_PRESENTATION_MODE,
     GET_WFD_MODE,
     GET_WFD_OUTPUT_RESOLUTION,
     GET_WFD_OUTPUT_INFO,
+    GET_PRESENTATION_MODE,
     GET_HDMI_CABLE_STATUS,
     GET_HDMI_RESOLUTION,
     GET_HDMI_AUDIO_CHANNEL,
@@ -241,6 +243,14 @@ public:
         remote()->transact(SET_HDMI_SUBTITLES, data, &reply);
     }
 
+    virtual void setPresentationMode(bool use)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
+        data.writeInt32(use);
+        remote()->transact(SET_PRESENTATION_MODE, data, &reply);
+    }
+
     virtual int getWFDMode()
     {
         Parcel data, reply;
@@ -267,6 +277,15 @@ public:
         *fd1 = dup(reply.readFileDescriptor());
         *fd2 = dup(reply.readFileDescriptor());
         reply.read(wfd_info, sizeof(wfd_info));
+    }
+
+    virtual int getPresentationMode(void)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
+        int result = remote()->transact(GET_PRESENTATION_MODE, data, &reply);
+        result = reply.readInt32();
+        return result;
     }
 
     virtual void getHdmiResolution(uint32_t *width, uint32_t *height)
@@ -441,6 +460,12 @@ status_t BnExynosHWCService::onTransact(
             setHdmiSubtitles(use);
             return NO_ERROR;
         } break;
+        case SET_PRESENTATION_MODE: {
+            CHECK_INTERFACE(IExynosHWCService, data, reply);
+            int use = data.readInt32();
+            setPresentationMode(use);
+            return NO_ERROR;
+        } break;
 
         case GET_WFD_MODE: {
             CHECK_INTERFACE(IExynosHWCService, data, reply);
@@ -464,6 +489,12 @@ status_t BnExynosHWCService::onTransact(
             reply->writeFileDescriptor(fd1);
             reply->writeFileDescriptor(fd2);
             reply->write(&wfd_info, sizeof(wfd_info));
+            return NO_ERROR;
+        } break;
+        case GET_PRESENTATION_MODE: {
+            CHECK_INTERFACE(IExynosHWCService, data, reply);
+            int res = getPresentationMode();
+            reply->writeInt32(res);
             return NO_ERROR;
         } break;
         default:

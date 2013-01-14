@@ -256,6 +256,13 @@ void ExynosHWCService::setHdmiSubtitles(bool use)
     mHWCCtx->mUseSubtitles = use;
 }
 
+void ExynosHWCService::setPresentationMode(bool use)
+{
+#ifdef USES_WFD
+    mHWCCtx->mPresentationMode = !!use;
+#endif
+}
+
 int ExynosHWCService::getWFDMode()
 {
 #ifdef USES_WFD
@@ -287,6 +294,15 @@ void ExynosHWCService::getWFDOutputInfo(int *fd1, int *fd2, struct wfd_layer_t *
         *fd1 = -1;
         *fd2 = -1;
     }
+#endif
+}
+
+int ExynosHWCService::getPresentationMode()
+{
+#ifdef USES_WFD
+    return !!mHWCCtx->mPresentationMode;
+#else
+    return INVALID_OPERATION;
 #endif
 }
 

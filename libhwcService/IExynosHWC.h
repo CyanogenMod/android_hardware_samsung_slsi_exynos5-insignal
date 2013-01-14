@@ -76,10 +76,12 @@ public:
     virtual void setHdmiHdcp(int status) = 0;
     virtual void setHdmiAudioChannel(uint32_t channels) = 0;
     virtual void setHdmiSubtitles(bool use) = 0;
+    virtual void setPresentationMode(bool use) = 0;
 
     virtual int  getWFDMode() = 0;
     virtual void getWFDOutputResolution(unsigned int *width, unsigned int *height) = 0;
     virtual void getWFDOutputInfo(int *fd1, int *fd2, struct wfd_layer_t *wfd_info) = 0;
+    virtual int getPresentationMode(void) = 0;
     virtual void getHdmiResolution(uint32_t *width, uint32_t *height) = 0;
     virtual uint32_t getHdmiCableStatus() = 0;
     virtual uint32_t getHdmiAudioChannel() = 0;

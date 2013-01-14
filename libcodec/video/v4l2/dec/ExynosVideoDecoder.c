@@ -377,6 +377,29 @@ EXIT:
 }
 
 /*
+ * [Decoder OPS] Set Immediate Display
+ */
+static ExynosVideoErrorType MFC_Decoder_Set_ImmediateDisplay( void *pHandle)
+{
+    ExynosVideoDecContext *pCtx = (ExynosVideoDecContext *)pHandle;
+    ExynosVideoErrorType   ret  = VIDEO_ERROR_NONE;
+
+    if (pCtx == NULL) {
+        ALOGE("%s: Video context info must be supplied", __func__);
+        ret = VIDEO_ERROR_BADPARAM;
+        goto EXIT;
+    }
+
+    if (exynos_v4l2_s_ctrl(pCtx->hDec, V4L2_CID_MPEG_VIDEO_DECODER_IMMEDIATE_DISPLAY, 1) != 0) {
+        ret = VIDEO_ERROR_APIFAIL;
+        goto EXIT;
+    }
+
+EXIT:
+    return ret;
+}
+
+/*
  * [Decoder OPS] Enable Packed PB
  */
 static ExynosVideoErrorType MFC_Decoder_Enable_PackedPB(void *pHandle)
@@ -1853,6 +1876,7 @@ static ExynosVideoDecOps defDecOps = {
     .Get_FrameTag           = MFC_Decoder_Get_FrameTag,
     .Enable_SEIParsing      = MFC_Decoder_Enable_SEIParsing,
     .Get_FramePackingInfo   = MFC_Decoder_Get_FramePackingInfo,
+    .Set_ImmediateDisplay   = MFC_Decoder_Set_ImmediateDisplay,
 };
 
 /*

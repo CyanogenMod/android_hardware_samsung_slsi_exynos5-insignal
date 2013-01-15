@@ -24,10 +24,17 @@ exynos5_dirs := \
 	librotator \
 	libswconverter \
 	libhwcService \
-	libhwc \
 	libkeymaster \
 	libsecurepath \
 	libcec
+
+ifeq ($(BOARD_TV_PRIMARY), true)
+exynos5_dirs += \
+       libhwc_tvprimary
+else
+exynos5_dirs += \
+       libhwc
+endif
 
 include $(call all-named-subdir-makefiles,$(exynos5_dirs))
 

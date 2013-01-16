@@ -289,6 +289,20 @@ static bool exynos5_format_is_supported_gsc_local(int format)
 }
 #endif
 
+static int exynos5_get_drmMode(int flags)
+{
+    if (flags & GRALLOC_USAGE_PROTECTED) {
+#ifdef USE_NORMAL_DRM
+        if (flags & GRALLOC_USAGE_PRIVATE_NONSECURE)
+            return NORMAL_DRM;
+        else
+#endif
+            return SECURE_DRM;
+    } else {
+        return NO_DRM;
+    }
+}
+
 #ifdef SUPPORT_GSC_LOCAL_PATH
 static bool exynos5_supports_gscaler(struct exynos5_hwc_composer_device_1_t *pdev,
         hwc_layer_1_t &layer, int format,
@@ -330,13 +344,13 @@ static bool exynos5_supports_gscaler(hwc_layer_1_t &layer, int format,
         dest_h = HEIGHT(layer.displayFrame);
     }
 
-    if (handle->flags & GRALLOC_USAGE_PROTECTED)
+    if (exynos5_get_drmMode(handle->flags) == SECURE_DRM)
         align_crop_and_center(dest_w, dest_h, NULL,
                 GSC_DST_CROP_W_ALIGNMENT_RGB888);
 
 #ifdef SUPPORT_GSC_LOCAL_PATH
     int max_downscale = local_path ? loc_out_downscale : 16;
-    if (local_path && (handle->flags & GRALLOC_USAGE_PROTECTED))
+    if (local_path && (exynos5_get_drmMode(handle->flags) == SECURE_DRM))
         return 0;
 #else
     int max_downscale = local_path ? 4 : 16;
@@ -411,7 +425,8 @@ static void wfd_output(buffer_handle_t buf, exynos5_hwc_composer_device_1_t *pde
     pdev->wfd_buf_fd[1] = handle->fd1;
 
     pdev->wfd_info.isPresentation = !!pdev->force_mirror_mode;
-    pdev->wfd_info.isDrm = !!(src_handle->flags & GRALLOC_USAGE_PROTECTED);
+    pdev->wfd_info.isDrm = !!(exynos5_get_drmMode(src_handle->flags) == SECURE_DRM);
+
     gettimeofday(&pdev->wfd_info.tv_stamp, NULL);
 
     if (gsc->dst_cfg.releaseFenceFd > 0)
@@ -1433,7 +1448,7 @@ static bool exynos5_compare_yuvlayer_config(hwc_layer_1_t &layer,
     new_src_cfg.h = HEIGHT(layer.sourceCrop);
     new_src_cfg.fh = src_handle->vstride;
     new_src_cfg.format = src_handle->format;
-    new_src_cfg.drmMode = !!(src_handle->flags & GRALLOC_USAGE_PROTECTED);
+    new_src_cfg.drmMode = !!(exynos5_get_drmMode(src_handle->flags) == SECURE_DRM);
 
     new_dst_cfg.x = layer.displayFrame.left;
     new_dst_cfg.y = layer.displayFrame.top;
@@ -1534,7 +1549,7 @@ static int exynos5_prepare_fimd(exynos5_hwc_composer_device_1_t *pdev,
         hwc_layer_1_t &layer = contents->hwLayers[i];
         if (layer.handle) {
             private_handle_t *handle = private_handle_t::dynamicCast(layer.handle);
-            if (handle->flags & GRALLOC_USAGE_PROTECTED) {
+            if (exynos5_get_drmMode(handle->flags) == SECURE_DRM) {
                 ALOGV("included protected layer, should use GSC M2M");
                 goto retry;
             }
@@ -1781,8 +1796,8 @@ retry:
                         private_handle_t::dynamicCast(layer.handle);
                 if (exynos5_requires_gscaler(layer, handle->format)) {
 #ifdef HWC_SERVICES
-                    if (pdev->hdmi_hpd && (handle->flags & GRALLOC_USAGE_PROTECTED) &&
-                        (!pdev->video_playback_status)) {
+                    if (pdev->hdmi_hpd && (exynos5_get_drmMode(handle->flags) == SECURE_DRM)
+                        && (!pdev->video_playback_status)) {
                         /*
                          * video is a DRM content and play status is normal. video display is going to be
                          * skipped on LCD.
@@ -1898,7 +1913,7 @@ static int exynos5_config_gsc_localout(exynos5_hwc_composer_device_1_t *pdev,
         src_cfg.vaddr = src_handle->fd2;
     }
     src_cfg.format = src_handle->format;
-    src_cfg.drmMode = !!(src_handle->flags & GRALLOC_USAGE_PROTECTED);
+    src_cfg.drmMode = !!(exynos5_get_drmMode(src_handle->flags) == SECURE_DRM);
     src_cfg.acquireFenceFd = layer.acquireFenceFd;
 
     dst_cfg.x = layer.displayFrame.left;
@@ -2157,10 +2172,10 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 #endif
 
 #if defined(GSC_VIDEO)
-                    if (((h->flags & GRALLOC_USAGE_PROTECTED) || (h->flags & GRALLOC_USAGE_EXTERNAL_DISP)) &&
+                    if (((exynos5_get_drmMode(h->flags) == SECURE_DRM) || (h->flags & GRALLOC_USAGE_EXTERNAL_DISP)) &&
                         exynos5_supports_gscaler(layer, h->format, false)) {
 #else
-                    if (h->flags & GRALLOC_USAGE_PROTECTED) {
+                    if (exynos5_get_drmMode(h->flags) == SECURE_DRM) {
 #endif
 #if !defined(GSC_VIDEO)
                             if (!video_layer) {
@@ -2323,7 +2338,7 @@ static int exynos5_prepare_wfd(exynos5_hwc_composer_device_1_t *pdev,
         if (layer.handle) {
             private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
 
-            if ((h->flags & GRALLOC_USAGE_PROTECTED) || (h->flags & GRALLOC_USAGE_EXTERNAL_DISP) &&
+            if ((exynos5_get_drmMode(h->flags) == SECURE_DRM) || (h->flags & GRALLOC_USAGE_EXTERNAL_DISP) &&
                 (exynos5_supports_gscaler(layer, h->format, false))) {
 
                 if (!video_layer) {
@@ -2443,7 +2458,7 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
         src_cfg.vaddr = src_handle->fd2;
     }
     src_cfg.format = exynos5_format_to_gsc_format(src_handle->format);
-    src_cfg.drmMode = !!(src_handle->flags & GRALLOC_USAGE_PROTECTED);
+    src_cfg.drmMode = !!(exynos5_get_drmMode(src_handle->flags) == SECURE_DRM);
     src_cfg.acquireFenceFd = layer.acquireFenceFd;
     src_cfg.mem_type = GSC_MEM_DMABUF;
     layer.acquireFenceFd = -1;
@@ -2475,8 +2490,13 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
 #endif
                 GRALLOC_USAGE_HW_COMPOSER;
 
-        if (src_handle->flags & GRALLOC_USAGE_PROTECTED)
+        if (exynos5_get_drmMode(src_handle->flags) == SECURE_DRM) {
             usage |= GRALLOC_USAGE_PROTECTED;
+            usage &= ~GRALLOC_USAGE_PRIVATE_NONSECURE;
+        } else if (exynos5_get_drmMode(src_handle->flags) == NORMAL_DRM) {
+            usage |= GRALLOC_USAGE_PROTECTED;
+            usage |= GRALLOC_USAGE_PRIVATE_NONSECURE;
+        }
 
         int w, h;
 #if USES_WFD
@@ -3048,9 +3068,9 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
             private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
 
 #if defined(GSC_VIDEO)
-            if ((h->flags & GRALLOC_USAGE_PROTECTED) || (h->flags & GRALLOC_USAGE_EXTERNAL_DISP)) {
+            if ((exynos5_get_drmMode(h->flags) == SECURE_DRM) || (h->flags & GRALLOC_USAGE_EXTERNAL_DISP)) {
 #else
-            if (h->flags & GRALLOC_USAGE_PROTECTED) {
+            if (exynos5_get_drmMode(h->flags) == SECURE_DRM) {
 #endif
                 exynos5_gsc_data_t &gsc = pdev->gsc[HDMI_GSC_IDX];
                 int ret = exynos5_config_gsc_m2m(layer, pdev->alloc_device, &gsc,

@@ -358,4 +358,9 @@ enum {
     S3D_NONE,
 };
 #endif
+enum {
+    NO_DRM = 0,
+    NORMAL_DRM,
+    SECURE_DRM,
+};
 #endif

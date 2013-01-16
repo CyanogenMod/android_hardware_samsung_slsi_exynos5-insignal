@@ -48,6 +48,10 @@ ifeq ($(BOARD_USES_FB_PHY_LINEAR),true)
 	LOCAL_CFLAGS += -DUSE_FB_PHY_LINEAR
 endif
 
+ifeq ($(BOARD_USES_U4A),true)
+	LOCAL_CFLAGS += -DUSES_U4A
+endif
+
 LOCAL_CFLAGS += -DLOG_TAG=\"hwcomposer\"
 
 LOCAL_C_INCLUDES := \

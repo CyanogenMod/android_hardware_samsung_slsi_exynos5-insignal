@@ -2088,6 +2088,7 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 #endif
                 /* EXTENTION mode */
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
+#ifdef USES_U4A
                 if (pdev->num_of_ext_vfb_layer) {
                     if (h->flags & GRALLOC_USAGE_EXTERNAL_VIRTUALFB) {
                         if (!pdev->already_mapped_vfb) {
@@ -2115,6 +2116,7 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                     }
                     continue;
                 }
+#endif
                 /* if there is a blocking_layer, only display it, others ignore */
                 if (pdev->use_blocking_layer) {
                     if (h->flags & GRALLOC_USAGE_EXTERNAL_BLOCK) {
@@ -3075,9 +3077,13 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
             if (h->flags & GRALLOC_USAGE_EXTERNAL_VIRTUALFB) {
+#ifdef USES_U4A
+#if 0
+                /* get the latest buffer by offset */
                 struct fb_var_screeninfo info;
                 if (ioctl(pdev->vfb_fd, FBIOGET_VSCREENINFO, &info) == -1)
                     ALOGE("FBIOGET_VSCREENINFO ioctl failed: %s", strerror(errno));
+#endif
 
                 private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
                 hwc_layer_1_t dst_layer;
@@ -3087,13 +3093,20 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                 dst_layer.displayFrame.bottom = pdev->hdmi_h;
                 layer.releaseFenceFd = layer.acquireFenceFd;
 
+#if 0
+                /* this code will be used to display the latest buffer by offset */
                 int index = info.yoffset / HEIGHT(dst_layer.displayFrame);
                 int surface_fd = pdev->surface_fd_for_vfb[index];
                 if ((index < NUM_BUFFER_U4A) && surface_fd != -1) {
                     h->fd = surface_fd;
                     hdmi_output(pdev, pdev->hdmi_layers[0], dst_layer, h, -1, NULL);
                 }
+#else
+                hdmi_output(pdev, pdev->hdmi_layers[0], dst_layer, h, layer.acquireFenceFd,
+                        &layer.releaseFenceFd);
+#endif
                 video_layer = &layer;
+#endif
             } else if (h->flags & GRALLOC_USAGE_EXTERNAL_FLEXIBLE) {
                 if (pdev->is_change_external_surface) {
                     if (video_layer) {
@@ -4121,6 +4134,7 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
     dev->composite_buf_height = 0;
     dev->already_mapped_vfb = false;
 
+#ifdef USES_U4A
     struct fb_var_screeninfo var_info;
     struct s3cfb_user_window window;
     int vfb_fd;
@@ -4167,6 +4181,7 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
     dev->vfb_fd = vfb_fd;
     for (int i = 0; i < NUM_BUFFER_U4A; i++)
         dev->surface_fd_for_vfb[i] = -1;
+#endif
 
     for (int i = 0; i < NUM_FB_TARGET; i++) {
         dev->fb_target_info[i].fd = -1;

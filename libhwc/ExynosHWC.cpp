@@ -4045,6 +4045,7 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
         for (size_t j = 0; j < NUM_GSC_DST_BUFS; j++)
             dev->gsc[i].dst_buf_fence[j] = -1;
 
+#if !defined(HDMI_INCAPABLE)
     dev->hdmi_mixer0 = exynos_subdev_open_devname("s5p-mixer0", O_RDWR);
     if (dev->hdmi_mixer0 < 0) {
         ALOGE("failed to open hdmi mixer0 subdev");
@@ -4067,14 +4068,14 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
         ret = dev->hdmi_layers[1].fd;
         goto err_hdmi0;
     }
-
+#endif
     dev->vsync_fd = open(VSYNC_DEV_NAME, O_RDONLY);
     if (dev->vsync_fd < 0) {
         ALOGE("failed to open vsync attribute");
         ret = dev->vsync_fd;
         goto err_hdmi1;
     }
-
+#if !defined(HDMI_INCAPABLE)
     sw_fd = open("/sys/class/switch/hdmi/state", O_RDONLY);
     if (sw_fd) {
         char val;
@@ -4086,7 +4087,7 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
             }
         }
     }
-
+#endif
     dev->base.common.tag = HARDWARE_DEVICE_TAG;
     dev->base.common.version = HWC_DEVICE_API_VERSION_1_1;
     dev->base.common.module = const_cast<hw_module_t *>(module);

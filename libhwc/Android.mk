@@ -52,6 +52,10 @@ ifeq ($(BOARD_USES_U4A),true)
 	LOCAL_CFLAGS += -DUSES_U4A
 endif
 
+ifeq ($(BOARD_HDMI_INCAPABLE), true)
+	LOCAL_CFLAGS += -DHDMI_INCAPABLE
+endif
+
 LOCAL_CFLAGS += -DLOG_TAG=\"hwcomposer\"
 
 LOCAL_C_INCLUDES := \

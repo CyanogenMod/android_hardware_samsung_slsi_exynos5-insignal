@@ -174,7 +174,6 @@ struct hdmi_layer_t {
     size_t  queued_buf;
 };
 
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
 #include "FimgApi.h"
 #define HWC_SKIP_HDMI_RENDERING 0x80000000
 
@@ -208,7 +207,6 @@ struct FB_TARGET_Info {
     int             map_size;
 };
 #define NUM_FB_TARGET 4
-#endif
 
 struct exynos5_hwc_composer_device_1_t {
     hwc_composer_device_1_t base;
@@ -324,6 +322,7 @@ struct exynos5_hwc_composer_device_1_t {
     int                     num_of_ext_disp_video_layer;
     int                     num_of_ext_only_layer;
     int                     num_of_ext_flexible_layer;
+#endif
 
     buffer_handle_t         composite_buffer_for_external[NUM_COMPOSITE_BUFFER_FOR_EXTERNAL];
     unsigned long           va_composite_buffer_for_external[NUM_COMPOSITE_BUFFER_FOR_EXTERNAL]; /* mapped address */
@@ -340,7 +339,6 @@ struct exynos5_hwc_composer_device_1_t {
     int                     surface_fd_for_vfb[NUM_BUFFER_U4A];  /* for ubuntu */
     int                     num_of_ext_vfb_layer;
     struct FB_TARGET_Info   fb_target_info[NUM_FB_TARGET];
-#endif
 };
 
 #if defined(HWC_SERVICES)

@@ -517,7 +517,6 @@ static bool exynos5_blending_is_supported(int32_t blending)
     return exynos5_blending_to_s3c_blending(blending) < S3C_FB_BLENDING_MAX;
 }
 
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
 static inline rotation rotateValueHAL2G2D(unsigned char transform)
 {
     int rotate_flag = transform & 0x7;
@@ -828,7 +827,6 @@ static buffer_handle_t *exynos5_external_layer_composite(exynos5_hwc_composer_de
 
     return &dst_buf;
 }
-#endif
 
 static int hdmi_enable_layer(struct exynos5_hwc_composer_device_1_t *dev,
                              hdmi_layer_t &hl)
@@ -2987,10 +2985,9 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
     hwc_layer_1_t *fb_layer = NULL;
     hwc_layer_1_t *video_layer = NULL;
 
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
-    int cnt_layer_for_external = 0;
     buffer_handle_t *dst_buf;
     int use_composite_buffer_for_external = 0;
+#ifdef USE_GRALLOC_FLAG_FOR_HDMI
     bool need_clear_composite_buffer = true;
 #endif
 
@@ -3202,7 +3199,7 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
             ALOGV("HDMI FB layer:");
             dump_layer(&layer);
 
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
+#ifdef HDMI_1080P30_OPTIMIZATION
             if (pdev->mHdmiCurrentPreset == V4L2_DV_1080P30) {
                 /* in case of 1080P30,  memcpy to tempbuffer, and then render that */
                 dst_buf = exynos5_external_layer_composite(pdev, layer, pdev->composite_buf_index, false);
@@ -3221,20 +3218,18 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                 private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
                 hdmi_output(pdev, pdev->hdmi_layers[1], layer, h, layer.acquireFenceFd,
                             &layer.releaseFenceFd);
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
+#ifdef HDMI_1080P30_OPTIMIZATION
             }
 #endif
             fb_layer = &layer;
         }
     }
 
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
     if (use_composite_buffer_for_external) {
         pdev->composite_buf_index++;
         if (pdev->composite_buf_index == NUM_COMPOSITE_BUFFER_FOR_EXTERNAL)
             pdev->composite_buf_index = 0;
     }
-#endif
 
     if (!video_layer && !pdev->local_external_display_pause) {
         hdmi_disable_layer(pdev, pdev->hdmi_layers[0]);

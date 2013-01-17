@@ -517,6 +517,7 @@ static bool exynos5_blending_is_supported(int32_t blending)
     return exynos5_blending_to_s3c_blending(blending) < S3C_FB_BLENDING_MAX;
 }
 
+#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(HDMI_1080P30_OPTIMIZATION)
 static inline rotation rotateValueHAL2G2D(unsigned char transform)
 {
     int rotate_flag = transform & 0x7;
@@ -827,6 +828,7 @@ static buffer_handle_t *exynos5_external_layer_composite(exynos5_hwc_composer_de
 
     return &dst_buf;
 }
+#endif
 
 static int hdmi_enable_layer(struct exynos5_hwc_composer_device_1_t *dev,
                              hdmi_layer_t &hl)

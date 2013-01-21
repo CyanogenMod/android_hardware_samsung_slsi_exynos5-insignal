@@ -834,6 +834,10 @@ static ExynosVideoErrorType MFC_Decoder_Get_Geometry_Outbuf(
     else
         bufferConf->bInterlaced = VIDEO_FALSE;
 
+    /* Get planes aligned buffer size */
+    bufferConf->nAlignPlaneSize[0] = fmt.fmt.pix_mp.plane_fmt[0].sizeimage;
+    bufferConf->nAlignPlaneSize[1] = fmt.fmt.pix_mp.plane_fmt[1].sizeimage;
+
     bufferConf->cropRect.nTop = crop.c.top;
     bufferConf->cropRect.nLeft = crop.c.left;
     bufferConf->cropRect.nWidth = crop.c.width;

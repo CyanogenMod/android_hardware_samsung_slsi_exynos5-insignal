@@ -96,6 +96,7 @@ typedef struct _ExynosVideoGeometry {
     unsigned int               nFrameWidth;
     unsigned int               nFrameHeight;
     unsigned int               nSizeImage;
+    unsigned int               nAlignPlaneSize[VIDEO_BUFFER_MAX_PLANES];
     ExynosVideoRect            cropRect;
     ExynosVideoCodingType      eCompressionFormat;
     ExynosVideoColorFormatType eColorFormat;

@@ -3560,6 +3560,13 @@ static int exynos5_eventControl(struct hwc_composer_device_1 *dev, int dpy,
 static void handle_hdmi_uevent(struct exynos5_hwc_composer_device_1_t *pdev,
         const char *buff, int len)
 {
+#if USES_WFD
+    if (pdev->wfd_hpd) {
+        ALOGW("Hotplug is already used by Wifi Display");
+        return;
+    }
+#endif
+
     const char *s = buff;
     s += strlen(s) + 1;
 

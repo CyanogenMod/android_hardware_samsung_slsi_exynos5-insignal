@@ -60,10 +60,8 @@ int ExynosHWCService::setWFDOutputResolution(unsigned int width, unsigned int he
     ALOGD_IF(HWC_SERVICE_DEBUG, "%s::width=%d, height=%d", __func__, width, height);
 
 #ifdef USES_WFD
-    if (mHWCCtx->wfd_hpd == true) {
-        mHWCCtx->wfd_w = width;
-        mHWCCtx->wfd_h = height;
-    }
+    mHWCCtx->wfd_w = width;
+    mHWCCtx->wfd_h = height;
     return NO_ERROR;
 #else
     return INVALID_OPERATION;

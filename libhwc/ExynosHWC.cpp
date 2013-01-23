@@ -1637,31 +1637,33 @@ retry:
             continue;
         }
 
-        private_handle_t *handle = private_handle_t::dynamicCast(layer.handle);
-        /* external surfaces should not use overlay */
+        if (layer.handle) {
+            private_handle_t *handle = private_handle_t::dynamicCast(layer.handle);
 
+            /* external surfaces should not use overlay */
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
-        if (handle && !(handle->flags & GRALLOC_USAGE_EXTERNAL_FLEXIBLE) &&
-                !(handle->flags & GRALLOC_USAGE_EXTERNAL_ONLY) &&
-                !(handle->flags & GRALLOC_USAGE_EXTERNAL_VIRTUALFB)) {
+            if (!(handle->flags & GRALLOC_USAGE_EXTERNAL_FLEXIBLE) &&
+                    !(handle->flags & GRALLOC_USAGE_EXTERNAL_ONLY) &&
+                    !(handle->flags & GRALLOC_USAGE_EXTERNAL_VIRTUALFB)) {
 #endif
 
 #ifndef HWC_DYNAMIC_RECOMPOSITION
-            if (exynos5_supports_overlay(contents->hwLayers[i], i, pdev) &&
-                    !force_fb) {
+                if (exynos5_supports_overlay(contents->hwLayers[i], i, pdev) &&
+                        !force_fb) {
 #else
-            pdev->totPixels += WIDTH(layer.displayFrame) * HEIGHT(layer.displayFrame);
-            if (exynos5_supports_overlay(contents->hwLayers[i], i, pdev) &&
-                    !force_fb && (pdev->CompModeSwitch != HWC_2_GLES)) {
+                pdev->totPixels += WIDTH(layer.displayFrame) * HEIGHT(layer.displayFrame);
+                if (exynos5_supports_overlay(contents->hwLayers[i], i, pdev) &&
+                        !force_fb && (pdev->CompModeSwitch != HWC_2_GLES)) {
 #endif
-                ALOGV("\tlayer %u: overlay supported", i);
-                layer.compositionType = HWC_OVERLAY;
-                dump_layer(&contents->hwLayers[i]);
-                continue;
-            }
+                    ALOGV("\tlayer %u: overlay supported", i);
+                    layer.compositionType = HWC_OVERLAY;
+                    dump_layer(&contents->hwLayers[i]);
+                    continue;
+                }
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
-        }
+            }
 #endif
+        }
 
         if (!fb_needed) {
             first_fb = i;

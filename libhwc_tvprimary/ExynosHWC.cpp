@@ -3415,6 +3415,7 @@ static void handle_hdmi_uevent(struct exynos5_hwc_composer_device_1_t *pdev,
         start_cec(pdev);
     } else {
         CECClose();
+        pdev->mCecFd = -1;
     }
 #else
     }

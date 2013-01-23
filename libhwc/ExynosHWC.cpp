@@ -492,6 +492,11 @@ void wfd_get_config(struct exynos5_hwc_composer_device_1_t *dev)
     if (dev->wfd_h == 0)
         dev->wfd_h = EXYNOS5_WFD_DEFAULT_HEIGHT;
 
+    /* Case: YUV420, 2P: MIN(w) = 32, MIN(h) = 16 */
+    if (dev->wfd_w < EXYNOS5_WFD_OUTPUT_ALIGNMENT * 2)
+        dev->wfd_w = EXYNOS5_WFD_OUTPUT_ALIGNMENT * 2;
+    if (dev->wfd_h < EXYNOS5_WFD_OUTPUT_ALIGNMENT)
+        dev->wfd_h = EXYNOS5_WFD_OUTPUT_ALIGNMENT;
     dev->hdmi_w = dev->wfd_w;
     dev->hdmi_h = dev->wfd_h;
 }
@@ -2524,7 +2529,7 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
 #if USES_WFD
         if (dst_format == EXYNOS5_WFD_FORMAT) {
             w = ALIGN(dst_cfg.w, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
-            h = ALIGN(dst_cfg.h, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
+            h = dst_cfg.h;
         } else
 #endif
         {
@@ -3343,7 +3348,7 @@ static int exynos5_set_wfd(exynos5_hwc_composer_device_1_t *pdev,
             return ret;
         }
         pdev->wfd_w = ALIGN(gsc.dst_cfg.w, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
-        pdev->wfd_h = ALIGN(gsc.dst_cfg.h, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
+        pdev->wfd_h = gsc.dst_cfg.h;
 
         buffer_handle_t dst_buf = gsc.dst_buf[gsc.current_buf];
         wfd_output(dst_buf, pdev, &gsc, *overlay_layer);

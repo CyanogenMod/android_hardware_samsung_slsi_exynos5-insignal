@@ -197,7 +197,7 @@ EXIT_QUERYCAP_FAIL:
         free(pCtx->pOutMutex);
     }
 
-    close(pCtx->hDec);
+    exynos_v4l2_close(pCtx->hDec);
 
 EXIT_OPEN_FAIL:
     free(pCtx);
@@ -279,8 +279,8 @@ static ExynosVideoErrorType MFC_Decoder_Finalize(void *pHandle)
     if (pCtx->pOutbuf != NULL)
         free(pCtx->pOutbuf);
 
-    if (pCtx->hDec > 0)
-        close(pCtx->hDec);
+    if (pCtx->hDec >= 0)
+        exynos_v4l2_close(pCtx->hDec);
 
     free(pCtx);
 

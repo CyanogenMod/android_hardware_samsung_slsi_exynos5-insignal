@@ -541,7 +541,7 @@ static bool exynos5_blending_is_supported(int32_t blending)
     return exynos5_blending_to_s3c_blending(blending) < S3C_FB_BLENDING_MAX;
 }
 
-#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(HDMI_1080P30_OPTIMIZATION)
+#if defined(USE_GRALLOC_FLAG_FOR_HDMI)
 static inline rotation rotateValueHAL2G2D(unsigned char transform)
 {
     int rotate_flag = transform & 0x7;
@@ -3228,7 +3228,7 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
             ALOGV("HDMI FB layer:");
             dump_layer(&layer);
 
-#ifdef HDMI_1080P30_OPTIMIZATION
+#ifdef USE_GRALLOC_FLAG_FOR_HDMI
             if (pdev->mHdmiCurrentPreset == V4L2_DV_1080P30) {
                 /* in case of 1080P30,  memcpy to tempbuffer, and then render that */
                 dst_buf = exynos5_external_layer_composite(pdev, layer, pdev->composite_buf_index, false);
@@ -3247,7 +3247,7 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                 private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
                 hdmi_output(pdev, pdev->hdmi_layers[1], layer, h, layer.acquireFenceFd,
                             &layer.releaseFenceFd);
-#ifdef HDMI_1080P30_OPTIMIZATION
+#ifdef USE_GRALLOC_FLAG_FOR_HDMI
             }
 #endif
             fb_layer = &layer;

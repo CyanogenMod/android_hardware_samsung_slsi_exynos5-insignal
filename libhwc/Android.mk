@@ -23,10 +23,6 @@ LOCAL_SHARED_LIBRARIES := liblog libcutils libEGL libGLESv1_CM libhardware \
 	libhardware_legacy libion_exynos libutils libsync libexynosgscaler \
 	libexynosv4l2 libMcClient libexynosutils
 
-ifeq ($(BOARD_USES_SKIA_FIMGAPI),true)
-LOCAL_SHARED_LIBRARIES += libfimg
-endif
-
 ifeq ($(BOARD_USES_HWC_SERVICES),true)
 	LOCAL_SHARED_LIBRARIES += libExynosHWCService
 	LOCAL_CFLAGS += -DHWC_SERVICES
@@ -67,13 +63,14 @@ LOCAL_C_INCLUDES := \
 	$(LOCAL_PATH)/../include \
 	$(TOP)/hardware/samsung_slsi/exynos/include \
 	$(TOP)/hardware/samsung_slsi/exynos/libexynosutils \
-	$(TOP)/hardware/samsung_slsi/exynos/libfimg4x \
 	$(TOP)/hardware/samsung_slsi/$(TARGET_SOC)/include \
 	$(TOP)/hardware/samsung_slsi/$(TARGET_SOC)/libhwcmodule \
 	$(TOP)/hardware/samsung_slsi/$(TARGET_BOARD_PLATFORM)/libcec
 
 ifeq ($(BOARD_USE_GRALLOC_FLAG_FOR_HDMI),true)
 	LOCAL_CFLAGS += -DUSE_GRALLOC_FLAG_FOR_HDMI
+	LOCAL_SHARED_LIBRARIES += libfimg
+	LOCAL_C_INCLUDES += $(TOP)/hardware/samsung_slsi/exynos/libfimg4x
 endif
 
 LOCAL_SRC_FILES := ExynosHWC.cpp

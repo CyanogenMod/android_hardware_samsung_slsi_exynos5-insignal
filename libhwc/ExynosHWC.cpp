@@ -331,7 +331,7 @@ static bool exynos5_supports_gscaler(hwc_layer_1_t &layer, int format,
         dest_h = HEIGHT(layer.displayFrame);
     }
 
-    if (exynos5_get_drmMode(handle->flags) == SECURE_DRM)
+    if (exynos5_get_drmMode(handle->flags) != NO_DRM)
         align_crop_and_center(dest_w, dest_h, NULL,
                 GSC_DST_CROP_W_ALIGNMENT_RGB888);
 
@@ -358,7 +358,7 @@ static bool exynos5_supports_gscaler(hwc_layer_1_t &layer, int format,
             return 0;
 
         /* GSC OTF can't handle GRALLOC_USAGE_PROTECTED layer */
-        if (exynos5_get_drmMode(handle->flags) == SECURE_DRM)
+        if (exynos5_get_drmMode(handle->flags) != NO_DRM)
             return 0;
 
         return exynos5_format_is_supported_by_gscaler(format) &&
@@ -1576,7 +1576,7 @@ static int exynos5_prepare_fimd(exynos5_hwc_composer_device_1_t *pdev,
         hwc_layer_1_t &layer = contents->hwLayers[i];
         if (layer.handle) {
             private_handle_t *handle = private_handle_t::dynamicCast(layer.handle);
-            if (exynos5_get_drmMode(handle->flags) == SECURE_DRM) {
+            if (exynos5_get_drmMode(handle->flags) != NO_DRM) {
                 ALOGV("included protected layer, should use GSC M2M");
                 goto retry;
             }

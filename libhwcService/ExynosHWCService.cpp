@@ -55,13 +55,16 @@ int ExynosHWCService::setWFDMode(unsigned int mode)
 #endif
 }
 
-int ExynosHWCService::setWFDOutputResolution(unsigned int width, unsigned int height)
+int ExynosHWCService::setWFDOutputResolution(unsigned int width, unsigned int height,
+                                             unsigned int disp_w, unsigned int disp_h)
 {
     ALOGD_IF(HWC_SERVICE_DEBUG, "%s::width=%d, height=%d", __func__, width, height);
 
 #ifdef USES_WFD
     mHWCCtx->wfd_w = width;
     mHWCCtx->wfd_h = height;
+    mHWCCtx->wfd_disp_w = disp_w;
+    mHWCCtx->wfd_disp_h = disp_h;
     return NO_ERROR;
 #else
     return INVALID_OPERATION;
@@ -273,7 +276,7 @@ int ExynosHWCService::getWFDMode()
 void ExynosHWCService::getWFDOutputResolution(unsigned int *width, unsigned int *height)
 {
 #ifdef USES_WFD
-    *width  = mHWCCtx->wfd_w;
+    *width  = ALIGN(mHWCCtx->wfd_w, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
     *height = mHWCCtx->wfd_h;
 #else
     *width  = 0;

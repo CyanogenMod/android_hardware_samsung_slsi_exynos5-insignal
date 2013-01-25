@@ -72,7 +72,8 @@ public:
     ~ExynosHWCService();
 
     virtual int setWFDMode(unsigned int mode);
-    virtual int setWFDOutputResolution(unsigned int width, unsigned int height);
+    virtual int setWFDOutputResolution(unsigned int width, unsigned int height,
+                                      unsigned int disp_w, unsigned int disp_h);
     virtual int setExtraFBMode(unsigned int mode);
     virtual int setCameraMode(unsigned int mode);
     virtual int setForceMirrorMode(unsigned int mode);

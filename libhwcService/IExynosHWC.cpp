@@ -82,12 +82,15 @@ public:
         return result;
     }
 
-    virtual int setWFDOutputResolution(unsigned int width, unsigned int height)
+    virtual int setWFDOutputResolution(unsigned int width, unsigned int height,
+                                       unsigned int disp_w, unsigned int disp_h)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
         data.writeInt32(width);
         data.writeInt32(height);
+        data.writeInt32(disp_w);
+        data.writeInt32(disp_h);
         int result = remote()->transact(SET_WFD_OUTPUT_RESOLUTION, data, &reply);
         result = reply.readInt32();
         return result;
@@ -331,7 +334,9 @@ status_t BnExynosHWCService::onTransact(
             CHECK_INTERFACE(IExynosHWCService, data, reply);
             int width  = data.readInt32();
             int height = data.readInt32();
-            int res = setWFDOutputResolution(width, height);
+            int disp_w = data.readInt32();
+            int disp_h = data.readInt32();
+            int res = setWFDOutputResolution(width, height, disp_w, disp_h);
             reply->writeInt32(res);
             return NO_ERROR;
         } break;

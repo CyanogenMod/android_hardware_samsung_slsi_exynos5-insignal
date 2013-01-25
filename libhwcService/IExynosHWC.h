@@ -48,7 +48,8 @@ public:
      * It enables / disables the WFD.
      */
     virtual int setWFDMode(unsigned int mode) = 0;
-    virtual int setWFDOutputResolution(unsigned int width, unsigned int height) = 0;
+    virtual int setWFDOutputResolution(unsigned int width, unsigned int height,
+                                  unsigned int disp_w, unsigned int disp_h) = 0;
 
     /*
      * setExtraFBMode() function Enables / disables the extra FB usage.

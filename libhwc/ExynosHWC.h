@@ -240,6 +240,8 @@ struct exynos5_hwc_composer_device_1_t {
     bool wfd_blanked;
     int  wfd_w;
     int  wfd_h;
+    int  wfd_disp_w;
+    int  wfd_disp_h;
     int  wfd_buf_fd[3];
     struct wfd_layer_t      wfd_info;
     int  wfd_locked_fd;

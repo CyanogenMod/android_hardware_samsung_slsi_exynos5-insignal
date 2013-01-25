@@ -487,10 +487,10 @@ static void wfd_disable(struct exynos5_hwc_composer_device_1_t *dev)
 void wfd_get_config(struct exynos5_hwc_composer_device_1_t *dev)
 {
     if (dev->wfd_w == 0)
-        dev->wfd_w = EXYNOS5_WFD_DEFAULT_WIDTH;
+        dev->wfd_w = dev->wfd_disp_w = EXYNOS5_WFD_DEFAULT_WIDTH;
 
     if (dev->wfd_h == 0)
-        dev->wfd_h = EXYNOS5_WFD_DEFAULT_HEIGHT;
+        dev->wfd_h = dev->wfd_disp_h = EXYNOS5_WFD_DEFAULT_HEIGHT;
 
     /* Case: YUV420, 2P: MIN(w) = 32, MIN(h) = 16 */
     if (dev->wfd_w < EXYNOS5_WFD_OUTPUT_ALIGNMENT * 2)
@@ -2375,7 +2375,7 @@ static int exynos5_prepare_wfd(exynos5_hwc_composer_device_1_t *pdev,
                     struct v4l2_rect dest_rect;
 
                     hdmi_cal_dest_rect(WIDTH(layer.sourceCrop), HEIGHT(layer.sourceCrop),
-                            pdev->wfd_w, pdev->wfd_h, &dest_rect);
+                            pdev->disp_w, pdev->disp_h, &dest_rect);
                     layer.displayFrame.left = dest_rect.left;
                     layer.displayFrame.top = dest_rect.top;
                     layer.displayFrame.right = dest_rect.width + dest_rect.left;
@@ -2448,15 +2448,21 @@ static int exynos5_prepare(hwc_composer_device_1_t *dev,
 }
 
 static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
-        alloc_device_t* alloc_device, exynos5_gsc_data_t *gsc_data,
+        exynos5_hwc_composer_device_1_t *pdev, exynos5_gsc_data_t *gsc_data,
         int gsc_idx, int dst_format, hwc_rect_t *sourceCrop)
 {
     ALOGV("configuring gscaler %u for memory-to-memory", AVAILABLE_GSC_UNITS[gsc_idx]);
 
+    alloc_device_t* alloc_device = pdev->alloc_device;
     private_handle_t *src_handle = private_handle_t::dynamicCast(layer.handle);
     buffer_handle_t dst_buf;
     private_handle_t *dst_handle;
     int ret = 0;
+#if USES_WFD
+    int wfd_w = ALIGN(pdev->wfd_w, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
+    int wfd_disp_w = ALIGN(pdev->wfd_disp_w, 2);
+    int wfd_disp_h = ALIGN(pdev->wfd_disp_h, 2);
+#endif
 
     exynos_gsc_img src_cfg, dst_cfg;
     memset(&src_cfg, 0, sizeof(src_cfg));
@@ -2490,10 +2496,20 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
     src_cfg.mem_type = GSC_MEM_DMABUF;
     layer.acquireFenceFd = -1;
 
-    dst_cfg.x = 0;
-    dst_cfg.y = 0;
-    dst_cfg.w = WIDTH(layer.displayFrame);
-    dst_cfg.h = HEIGHT(layer.displayFrame);
+#if USES_WFD
+    if (dst_format == EXYNOS5_WFD_FORMAT) {
+        dst_cfg.x = (wfd_w - wfd_disp_w) / 2;
+        dst_cfg.y = (pdev->wfd_h - wfd_disp_h) / 2;
+        dst_cfg.w = wfd_disp_w;
+        dst_cfg.h = wfd_disp_h;
+    } else
+#endif
+    {
+        dst_cfg.x = 0;
+        dst_cfg.y = 0;
+        dst_cfg.w = WIDTH(layer.displayFrame);
+        dst_cfg.h = HEIGHT(layer.displayFrame);
+    }
     dst_cfg.rot = layer.transform;
     dst_cfg.drmMode = src_cfg.drmMode;
     dst_cfg.format = dst_format;
@@ -2528,8 +2544,8 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
         int w, h;
 #if USES_WFD
         if (dst_format == EXYNOS5_WFD_FORMAT) {
-            w = ALIGN(dst_cfg.w, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
-            h = dst_cfg.h;
+            w = wfd_w;
+            h = pdev->wfd_h;
         } else
 #endif
         {
@@ -2555,6 +2571,16 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
             int ret = alloc_device->alloc(alloc_device, w, h,
                     format, usage, &gsc_data->dst_buf[i],
                     &dst_stride);
+#ifdef USES_WFD
+             if (dst_format == EXYNOS5_WFD_FORMAT) {
+                 /* Default color will be black */
+                 char * uv_addr;
+                 dst_handle = private_handle_t::dynamicCast(gsc_data->dst_buf[i]);
+                 uv_addr = (char *)ion_map(dst_handle->fd1, w * h / 2, 0);
+                 memset(uv_addr, 0x7f, w * h / 2);
+             }
+#endif
+
             if (ret < 0) {
                 ALOGE("failed to allocate destination buffer: %s",
                         strerror(-ret));
@@ -2816,7 +2842,7 @@ static int exynos5_post_fimd(exynos5_hwc_composer_device_1_t *pdev,
                         gsc_idx = FIMD_GSC_TB_IDX;
                 }
 #endif
-                int err = exynos5_config_gsc_m2m(layer, pdev->alloc_device, &gsc,
+                int err = exynos5_config_gsc_m2m(layer, pdev, &gsc,
                         gsc_idx, dst_format, &sourceCrop);
                 if (err < 0) {
                     ALOGE("failed to configure gscaler %u for layer %u",
@@ -3099,7 +3125,7 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
             if (exynos5_get_drmMode(h->flags) == SECURE_DRM) {
 #endif
                 exynos5_gsc_data_t &gsc = pdev->gsc[HDMI_GSC_IDX];
-                int ret = exynos5_config_gsc_m2m(layer, pdev->alloc_device, &gsc,
+                int ret = exynos5_config_gsc_m2m(layer, pdev, &gsc,
                                                  gsc_idx,
                                                  HAL_PIXEL_FORMAT_RGBX_8888, NULL);
                 if (ret < 0) {
@@ -3341,14 +3367,13 @@ static int exynos5_set_wfd(exynos5_hwc_composer_device_1_t *pdev,
     if (overlay_layer || target_layer) {
         exynos5_gsc_data_t &gsc = pdev->gsc[HDMI_GSC_IDX];
         overlay_layer = overlay_layer == NULL? target_layer : overlay_layer;
-        int ret = exynos5_config_gsc_m2m(*overlay_layer, pdev->alloc_device, &gsc,
+        int ret = exynos5_config_gsc_m2m(*overlay_layer, pdev, &gsc,
                       HDMI_GSC_IDX, EXYNOS5_WFD_FORMAT, NULL);
         if (ret < 0) {
             ALOGE("failed to configure gscaler for WFD layer");
             return ret;
         }
-        pdev->wfd_w = ALIGN(gsc.dst_cfg.w, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
-        pdev->wfd_h = gsc.dst_cfg.h;
+        pdev->wfd_w = ALIGN(pdev->wfd_w, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
 
         buffer_handle_t dst_buf = gsc.dst_buf[gsc.current_buf];
         wfd_output(dst_buf, pdev, &gsc, *overlay_layer);

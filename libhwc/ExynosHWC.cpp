@@ -2366,7 +2366,11 @@ static int exynos5_prepare_wfd(exynos5_hwc_composer_device_1_t *pdev,
             private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
 
             if ((exynos5_get_drmMode(h->flags) == SECURE_DRM) || (h->flags & GRALLOC_USAGE_EXTERNAL_DISP) &&
+#ifdef SUPPORT_GSC_LOCAL_PATH
+                (exynos5_supports_gscaler(pdev, layer, h->format, false, 0))) {
+#else
                 (exynos5_supports_gscaler(layer, h->format, false))) {
+#endif
 
                 if (!video_layer) {
                     video_layer = &layer;

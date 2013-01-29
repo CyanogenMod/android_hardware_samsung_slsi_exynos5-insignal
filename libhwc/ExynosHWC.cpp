@@ -2595,7 +2595,29 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
         }
 
         gsc_data->current_buf = 0;
+#ifdef GSC_SKIP_DUPLICATE_FRAME_PROCESSING
+        gsc_data->last_gsc_lay_hnd = 0;
+#endif
     }
+
+#ifdef GSC_SKIP_DUPLICATE_FRAME_PROCESSING
+    if (gsc_data->last_gsc_lay_hnd == (uint32_t)layer.handle) {
+        if (layer.acquireFenceFd)
+            close(layer.acquireFenceFd);
+
+        layer.releaseFenceFd = -1;
+        gsc_data->dst_cfg.releaseFenceFd = -1;
+
+        gsc_data->current_buf = (gsc_data->current_buf + NUM_GSC_DST_BUFS - 1) % NUM_GSC_DST_BUFS;
+        if (gsc_data->dst_buf_fence[gsc_data->current_buf]) {
+            close (gsc_data->dst_buf_fence[gsc_data->current_buf]);
+            gsc_data->dst_buf_fence[gsc_data->current_buf] = -1;
+        }
+        return 0;
+    } else {
+        gsc_data->last_gsc_lay_hnd = (uint32_t)layer.handle;
+    }
+#endif
 
     dst_buf = gsc_data->dst_buf[gsc_data->current_buf];
     dst_handle = private_handle_t::dynamicCast(dst_buf);

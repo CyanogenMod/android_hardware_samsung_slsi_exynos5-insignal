@@ -90,6 +90,8 @@ class ExynosHWCService;
 }
 #endif
 
+#define GSC_SKIP_DUPLICATE_FRAME_PROCESSING
+
 #ifdef HWC_DYNAMIC_RECOMPOSITION
 #define HWC_FIMD_BW_TH  1.5   /* valid range 1 to 5 */
 #define HWC_FPS_TH          3    /* valid range 1 to 60 */
@@ -160,6 +162,9 @@ struct exynos5_gsc_data_t {
     size_t          current_buf;
 #ifdef SUPPORT_GSC_LOCAL_PATH
     int             gsc_mode;
+#endif
+#ifdef GSC_SKIP_DUPLICATE_FRAME_PROCESSING
+    uint32_t    last_gsc_lay_hnd;
 #endif
 };
 

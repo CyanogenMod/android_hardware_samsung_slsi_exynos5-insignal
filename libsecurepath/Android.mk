@@ -27,6 +27,7 @@ LOCAL_CPPFLAGS	:= -Wall -D_BUILD_DATE=$(BUILD_DATE)
 LOCAL_SRC_FILES	+= 	\
 	tlc_communication.cpp \
 	content_protect.cpp \
+	sec_g2ddrm.cpp
 
 LOCAL_C_INCLUDES := hardware/samsung_slsi/exynos5/include
 

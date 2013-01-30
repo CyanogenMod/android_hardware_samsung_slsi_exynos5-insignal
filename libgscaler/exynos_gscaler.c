@@ -212,8 +212,8 @@ static bool m_exynos_gsc_check_src_size(
         *h = (*h + 15) & ~15;
         //*w      = m_exynos_gsc_multiple_of_n(*w, 16);
         //*h      = m_exynos_gsc_multiple_of_n(*h, 16);
-        *crop_w = m_exynos_gsc_multiple_of_n(*crop_w, 4);
-        *crop_h = m_exynos_gsc_multiple_of_n(*crop_h, 4);
+        *crop_w = m_exynos_gsc_multiple_of_n(*crop_w, 2);
+        *crop_h = m_exynos_gsc_multiple_of_n(*crop_h, 2);
         break;
     // YUV422
     case V4L2_PIX_FMT_YUYV:

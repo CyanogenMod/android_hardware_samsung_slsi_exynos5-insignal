@@ -93,7 +93,7 @@ class ExynosHWCService;
 #define GSC_SKIP_DUPLICATE_FRAME_PROCESSING
 
 #ifdef HWC_DYNAMIC_RECOMPOSITION
-#define HWC_FIMD_BW_TH  1.5   /* valid range 1 to 5 */
+#define HWC_FIMD_BW_TH  1   /* valid range 1 to 5 */
 #define HWC_FPS_TH          3    /* valid range 1 to 60 */
 #define VSYNC_INTERVAL (1000000000.0 / 60)
 typedef enum _COMPOS_MODE_SWITCH {

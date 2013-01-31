@@ -78,7 +78,6 @@ const size_t BURSTLEN_BYTES = 16 * 8;
 const size_t NUM_HDMI_BUFFERS = 3;
 #define DIRECT_FB_SRC_BUF_WA
 
-#define SKIP_STATIC_LAYER_COMP
 #ifdef SKIP_STATIC_LAYER_COMP
 #define NUM_VIRT_OVER   5
 #endif

@@ -1689,6 +1689,10 @@ retry:
     // windows to retroactively violate constraints.)
     bool changed;
     bool gsc_used;
+#ifdef DUAL_VIDEO_OVERLAY_SUPORT
+    int gsc_layers;
+    int gsc_idx;
+#endif
     do {
         android::Vector<hwc_rect> rects;
         android::Vector<hwc_rect> overlaps;
@@ -1720,7 +1724,10 @@ retry:
         }
 
         changed = false;
-
+#ifdef DUAL_VIDEO_OVERLAY_SUPORT
+        gsc_layers = 0;
+        gsc_idx = 0;
+#endif
         for (size_t i = 0; i < contents->numHwLayers; i++) {
             hwc_layer_1_t &layer = contents->hwLayers[i];
             if ((layer.flags & HWC_SKIP_LAYER) ||
@@ -1745,8 +1752,12 @@ retry:
                     HEIGHT(layer.displayFrame);
             bool can_compose = windows_left && pixels_needed <= pixels_left;
             bool gsc_required = exynos5_requires_gscaler(layer, handle->format);
-            if (gsc_required)
+            if (gsc_required) {
+#ifdef DUAL_VIDEO_OVERLAY_SUPORT
+                if (gsc_layers >= 2)
+#endif
                 can_compose = can_compose && !gsc_used;
+            }
 
             // hwc_rect_t right and bottom values are normally exclusive;
             // the intersection logic is simpler if we make them inclusive
@@ -1781,8 +1792,12 @@ retry:
             rects.push_back(visible_rect);
             pixels_left -= pixels_needed;
             windows_left--;
-            if (gsc_required)
+            if (gsc_required) {
                 gsc_used = true;
+#ifdef DUAL_VIDEO_OVERLAY_SUPORT
+                gsc_layers++;
+#endif
+            }
         }
 
         if (changed)
@@ -1850,10 +1865,19 @@ retry:
                     }
                     pdev->bufs.gsc_map[nextWindow].idx = FIMD_GSC_IDX;
 #else
+#ifdef DUAL_VIDEO_OVERLAY_SUPORT
+                    ALOGV("\tusing gscaler %u",
+                            AVAILABLE_GSC_UNITS[FIMD_GSC_USAGE_IDX[gsc_idx]]);
+                    pdev->bufs.gsc_map[nextWindow].mode =
+                            exynos5_gsc_map_t::GSC_M2M;
+                    pdev->bufs.gsc_map[nextWindow].idx = FIMD_GSC_USAGE_IDX[gsc_idx];
+                    gsc_idx++;
+#else
                     ALOGV("\tusing gscaler %u", AVAILABLE_GSC_UNITS[FIMD_GSC_IDX]);
                     pdev->bufs.gsc_map[nextWindow].mode =
                             exynos5_gsc_map_t::GSC_M2M;
                     pdev->bufs.gsc_map[nextWindow].idx = FIMD_GSC_IDX;
+#endif
 #endif
                 }
             }
@@ -1869,8 +1893,13 @@ retry:
 #ifdef FORCEFB_YUVLAYER
     pdev->gsc_use = gsc_used;
 #else
+#ifdef DUAL_VIDEO_OVERLAY_SUPORT
+    for (size_t i = gsc_layers; i < 2; i++)
+            exynos5_cleanup_gsc_m2m(pdev, i);
+#else
     if (!gsc_used)
         exynos5_cleanup_gsc_m2m(pdev, FIMD_GSC_IDX);
+#endif
 #endif
 
     if (fb_needed)

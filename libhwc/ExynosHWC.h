@@ -58,6 +58,7 @@
 #include "videodev2.h"
 #ifdef USE_FB_PHY_LINEAR
 const size_t NUM_HW_WIN_FB_PHY = 2;
+#undef DUAL_VIDEO_OVERLAY_SUPORT
 #endif
 const size_t NUM_HW_WINDOWS = 5;
 const size_t NO_FB_NEEDED = NUM_HW_WINDOWS + 1;
@@ -65,6 +66,19 @@ const size_t MAX_PIXELS = 2560 * 1600 * 2;
 const size_t GSC_W_ALIGNMENT = 16;
 const size_t GSC_H_ALIGNMENT = 16;
 const size_t GSC_DST_H_ALIGNMENT_RGB888 = 1;
+#ifdef DUAL_VIDEO_OVERLAY_SUPORT
+const size_t FIMD_GSC_IDX = 0;
+const size_t FIMD_GSC_SEC_IDX = 1;
+const size_t FIMD_GSC_SBS_IDX = 2;
+const size_t FIMD_GSC_TB_IDX = 3;
+const size_t FIMD_GSC_FINAL_INDEX = 3;
+const size_t HDMI_GSC_IDX = 4;
+const size_t HDMI_GSC_SBS_IDX = 5;
+const size_t HDMI_GSC_TB_IDX = 6;
+const int FIMD_GSC_USAGE_IDX[] = {FIMD_GSC_IDX, FIMD_GSC_SEC_IDX,
+                                                    FIMD_GSC_SBS_IDX, FIMD_GSC_TB_IDX};
+const int AVAILABLE_GSC_UNITS[] = { 0, 3, 0, 0, 3, 3, 3 };
+#else
 const size_t FIMD_GSC_IDX = 0;
 const size_t HDMI_GSC_IDX = 1;
 const size_t FIMD_GSC_SBS_IDX = 2;
@@ -72,6 +86,7 @@ const size_t FIMD_GSC_TB_IDX = 3;
 const size_t HDMI_GSC_SBS_IDX = 4;
 const size_t HDMI_GSC_TB_IDX = 5;
 const int AVAILABLE_GSC_UNITS[] = { 0, 3, 0, 0, 3, 3 };
+#endif
 const size_t NUM_GSC_UNITS = sizeof(AVAILABLE_GSC_UNITS) /
         sizeof(AVAILABLE_GSC_UNITS[0]);
 const size_t BURSTLEN_BYTES = 16 * 8;

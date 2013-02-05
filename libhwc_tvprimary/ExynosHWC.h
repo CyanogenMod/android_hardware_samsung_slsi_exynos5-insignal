@@ -55,7 +55,9 @@
 #include "s5p_tvout_v4l2.h"
 #include "ExynosRect.h"
 #include "videodev2.h"
-
+#ifdef USE_FB_PHY_LINEAR
+const size_t NUM_HW_WIN_FB_PHY = 2;
+#endif
 const size_t GSC_DST_W_ALIGNMENT_RGB888 = 32;
 const size_t GSC_DST_CROP_W_ALIGNMENT_RGB888 = 32;
 #define VSYNC_DEV_NAME  "/sys/devices/platform/s5p-mixer/mxr_vsync"
@@ -82,6 +84,10 @@ const size_t BURSTLEN_BYTES = 16 * 8;
 const size_t NUM_HDMI_BUFFERS = 3;
 #define DIRECT_FB_SRC_BUF_WA
 
+#ifdef SKIP_STATIC_LAYER_COMP
+#define NUM_VIRT_OVER   5
+#endif
+
 #ifdef HWC_SERVICES
 #include "../libhwcService/ExynosHWCService.h"
 namespace android {
@@ -89,8 +95,10 @@ class ExynosHWCService;
 }
 #endif
 
+#define GSC_SKIP_DUPLICATE_FRAME_PROCESSING
+
 #ifdef HWC_DYNAMIC_RECOMPOSITION
-#define HWC_FIMD_BW_TH  1.5   /* valid range 1 to 5 */
+#define HWC_FIMD_BW_TH  1   /* valid range 1 to 5 */
 #define HWC_FPS_TH          3    /* valid range 1 to 60 */
 #define VSYNC_INTERVAL (1000000000.0 / 60)
 typedef enum _COMPOS_MODE_SWITCH {
@@ -160,6 +168,9 @@ struct exynos5_gsc_data_t {
 #ifdef SUPPORT_GSC_LOCAL_PATH
     int             gsc_mode;
 #endif
+#ifdef GSC_SKIP_DUPLICATE_FRAME_PROCESSING
+    uint32_t    last_gsc_lay_hnd;
+#endif
 };
 
 struct hdmi_layer_t {
@@ -173,7 +184,6 @@ struct hdmi_layer_t {
     size_t  queued_buf;
 };
 
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
 #include "FimgApi.h"
 #define HWC_SKIP_HDMI_RENDERING 0x80000000
 
@@ -207,7 +217,6 @@ struct FB_TARGET_Info {
     int             map_size;
 };
 #define NUM_FB_TARGET 4
-#endif
 
 struct exynos5_hwc_composer_device_1_t {
     hwc_composer_device_1_t base;
@@ -241,9 +250,12 @@ struct exynos5_hwc_composer_device_1_t {
     bool wfd_blanked;
     int  wfd_w;
     int  wfd_h;
+    int  wfd_disp_w;
+    int  wfd_disp_h;
     int  wfd_buf_fd[3];
     struct wfd_layer_t      wfd_info;
     int  wfd_locked_fd;
+    bool mPresentationMode;
 #endif
 
     hdmi_layer_t            hdmi_layers[2];
@@ -254,6 +266,12 @@ struct exynos5_hwc_composer_device_1_t {
     size_t                  last_fb_window;
     const void              *last_handles[NUM_HW_WINDOWS];
     exynos5_gsc_map_t       last_gsc_map[NUM_HW_WINDOWS];
+#ifdef SKIP_STATIC_LAYER_COMP
+    const void              *last_lay_hnd[NUM_VIRT_OVER];
+    int                     last_ovly_win_idx;
+    int                     last_ovly_lay_idx;
+    int                     virtual_ovly_flag;
+#endif
 #ifdef HWC_SERVICES
 
 #define S3D_ERROR -1
@@ -317,6 +335,7 @@ struct exynos5_hwc_composer_device_1_t {
     int                     num_of_ext_disp_video_layer;
     int                     num_of_ext_only_layer;
     int                     num_of_ext_flexible_layer;
+#endif
 
     buffer_handle_t         composite_buffer_for_external[NUM_COMPOSITE_BUFFER_FOR_EXTERNAL];
     unsigned long           va_composite_buffer_for_external[NUM_COMPOSITE_BUFFER_FOR_EXTERNAL]; /* mapped address */
@@ -333,7 +352,6 @@ struct exynos5_hwc_composer_device_1_t {
     int                     surface_fd_for_vfb[NUM_BUFFER_U4A];  /* for ubuntu */
     int                     num_of_ext_vfb_layer;
     struct FB_TARGET_Info   fb_target_info[NUM_FB_TARGET];
-#endif
 };
 
 #if defined(HWC_SERVICES)
@@ -351,4 +369,9 @@ enum {
     S3D_NONE,
 };
 #endif
+enum {
+    NO_DRM = 0,
+    NORMAL_DRM,
+    SECURE_DRM,
+};
 #endif

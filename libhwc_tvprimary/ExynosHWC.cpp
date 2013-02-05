@@ -57,7 +57,8 @@ static void dump_config(s3c_fb_win_config &c)
                 c.fd, c.offset, c.stride,
                 c.x, c.y, c.w, c.h,
                 c.format, c.blending);
-    } else if (c.state == c.S3C_FB_WIN_STATE_COLOR) {
+    }
+    else if (c.state == c.S3C_FB_WIN_STATE_COLOR) {
         ALOGV("\t\tcolor = %u", c.color);
     }
 }
@@ -288,6 +289,20 @@ static bool exynos5_format_is_supported_gsc_local(int format)
 }
 #endif
 
+static int exynos5_get_drmMode(int flags)
+{
+    if (flags & GRALLOC_USAGE_PROTECTED) {
+#ifdef USE_NORMAL_DRM
+        if (flags & GRALLOC_USAGE_PRIVATE_NONSECURE)
+            return NORMAL_DRM;
+        else
+#endif
+            return SECURE_DRM;
+    } else {
+        return NO_DRM;
+    }
+}
+
 #ifdef SUPPORT_GSC_LOCAL_PATH
 static bool exynos5_supports_gscaler(struct exynos5_hwc_composer_device_1_t *pdev,
         hwc_layer_1_t &layer, int format,
@@ -303,19 +318,8 @@ static bool exynos5_supports_gscaler(hwc_layer_1_t &layer, int format,
     int max_h = is_rotated(layer) ? 2048 : 3344;
 
     bool rot90or270 = !!(layer.transform & HAL_TRANSFORM_ROT_90);
-
-#ifdef SUPPORT_GSC_LOCAL_PATH
-    if (local_path && rot90or270)
-        return 0;
-    /*
-     * if display co-ordinates are out of the lcd resolution,
-     * skip that scenario to OpenGL.
-     * GSC OTF can't handle such scenarios.
-     */
-    if (layer.displayFrame.left < 0 || layer.displayFrame.top < 0 ||
-        layer.displayFrame.right > pdev->xres || layer.displayFrame.bottom > pdev->yres)
-        return 0;
-#endif
+    // n.b.: HAL_TRANSFORM_ROT_270 = HAL_TRANSFORM_ROT_90 |
+    //                               HAL_TRANSFORM_ROT_180
 
     int src_w = WIDTH(layer.sourceCrop), src_h = HEIGHT(layer.sourceCrop);
     int dest_w, dest_h;
@@ -327,19 +331,51 @@ static bool exynos5_supports_gscaler(hwc_layer_1_t &layer, int format,
         dest_h = HEIGHT(layer.displayFrame);
     }
 
-    if (handle->flags & GRALLOC_USAGE_PROTECTED)
+    if (exynos5_get_drmMode(handle->flags) != NO_DRM)
         align_crop_and_center(dest_w, dest_h, NULL,
                 GSC_DST_CROP_W_ALIGNMENT_RGB888);
 
 #ifdef SUPPORT_GSC_LOCAL_PATH
     int max_downscale = local_path ? loc_out_downscale : 16;
-    if (local_path && (handle->flags & GRALLOC_USAGE_PROTECTED))
-        return 0;
 #else
     int max_downscale = local_path ? 4 : 16;
 #endif
     const int max_upscale = 8;
 
+#ifdef SUPPORT_GSC_LOCAL_PATH
+    /* check whether GSC can handle with local path */
+    if (local_path) {
+        /* GSC OTF can't handle rot90 or rot270 */
+        if (rot90or270)
+            return 0;
+        /*
+         * if display co-ordinates are out of the lcd resolution,
+         * skip that scenario to OpenGL.
+         * GSC OTF can't handle such scenarios.
+         */
+        if (layer.displayFrame.left < 0 || layer.displayFrame.top < 0 ||
+            layer.displayFrame.right > pdev->xres || layer.displayFrame.bottom > pdev->yres)
+            return 0;
+
+        /* GSC OTF can't handle GRALLOC_USAGE_PROTECTED layer */
+        if (exynos5_get_drmMode(handle->flags) != NO_DRM)
+            return 0;
+
+        return exynos5_format_is_supported_by_gscaler(format) &&
+            exynos5_format_is_supported_gsc_local(format) &&
+            handle->stride <= max_w &&
+            src_w <= dest_w * max_downscale &&
+            dest_w <= src_w * max_upscale &&
+            handle->vstride <= max_h &&
+            src_h <= dest_h * max_downscale &&
+            dest_h <= src_h * max_upscale &&
+            // per 46.2
+            (dest_w % 2 == 0) &&
+            (dest_h % 2 == 0);
+     }
+#endif
+
+    /* check whether GSC can handle with M2M */
     return exynos5_format_is_supported_by_gscaler(format) &&
             dst_crop_w_aligned(dest_w) &&
             handle->stride <= max_w &&
@@ -408,7 +444,8 @@ static void wfd_output(buffer_handle_t buf, exynos5_hwc_composer_device_1_t *pde
     pdev->wfd_buf_fd[1] = handle->fd1;
 
     pdev->wfd_info.isPresentation = !!pdev->force_mirror_mode;
-    pdev->wfd_info.isDrm = !!(src_handle->flags & GRALLOC_USAGE_PROTECTED);
+    pdev->wfd_info.isDrm = !!(exynos5_get_drmMode(src_handle->flags) == SECURE_DRM);
+
     gettimeofday(&pdev->wfd_info.tv_stamp, NULL);
 
     if (gsc->dst_cfg.releaseFenceFd > 0)
@@ -450,11 +487,16 @@ static void wfd_disable(struct exynos5_hwc_composer_device_1_t *dev)
 void wfd_get_config(struct exynos5_hwc_composer_device_1_t *dev)
 {
     if (dev->wfd_w == 0)
-        dev->wfd_w = EXYNOS5_WFD_DEFAULT_WIDTH;
+        dev->wfd_w = dev->wfd_disp_w = EXYNOS5_WFD_DEFAULT_WIDTH;
 
     if (dev->wfd_h == 0)
-        dev->wfd_h = EXYNOS5_WFD_DEFAULT_HEIGHT;
+        dev->wfd_h = dev->wfd_disp_h = EXYNOS5_WFD_DEFAULT_HEIGHT;
 
+    /* Case: YUV420, 2P: MIN(w) = 32, MIN(h) = 16 */
+    if (dev->wfd_w < EXYNOS5_WFD_OUTPUT_ALIGNMENT * 2)
+        dev->wfd_w = EXYNOS5_WFD_OUTPUT_ALIGNMENT * 2;
+    if (dev->wfd_h < EXYNOS5_WFD_OUTPUT_ALIGNMENT)
+        dev->wfd_h = EXYNOS5_WFD_OUTPUT_ALIGNMENT;
     dev->hdmi_w = dev->wfd_w;
     dev->hdmi_h = dev->wfd_h;
 }
@@ -499,7 +541,7 @@ static bool exynos5_blending_is_supported(int32_t blending)
     return exynos5_blending_to_s3c_blending(blending) < S3C_FB_BLENDING_MAX;
 }
 
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
+#if defined(USE_GRALLOC_FLAG_FOR_HDMI)
 static inline rotation rotateValueHAL2G2D(unsigned char transform)
 {
     int rotate_flag = transform & 0x7;
@@ -1338,14 +1380,25 @@ bool exynos5_supports_overlay(hwc_layer_1_t &layer, size_t i,
     }
     if (exynos5_requires_gscaler(layer, handle->format)) {
 #ifdef SUPPORT_GSC_LOCAL_PATH
-        if (!exynos5_supports_gscaler(pdev, layer, handle->format, false, 1)) {
+        int down_ratio = exynos5_gsc_out_down_scl_ratio(pdev->xres, pdev->yres);
+        /* Check whether GSC can handle using local or M2M */
+        if (!((exynos5_supports_gscaler(pdev, layer, handle->format, false, down_ratio)) ||
+            (exynos5_supports_gscaler(pdev, layer, handle->format, true, down_ratio)))) {
 #else
+#ifdef USE_FB_PHY_LINEAR
+    if (layer.displayFrame.left < 0 || layer.displayFrame.top < 0 ||
+        layer.displayFrame.right > pdev->xres || layer.displayFrame.bottom > pdev->yres)
+        return false;
+#endif
         if (!exynos5_supports_gscaler(layer, handle->format, false)) {
 #endif
             ALOGV("\tlayer %u: gscaler required but not supported", i);
             return false;
         }
     } else {
+#ifdef USE_FB_PHY_LINEAR
+        return false;
+#endif
         if (!exynos5_format_is_supported(handle->format)) {
             ALOGV("\tlayer %u: pixel format %u not supported", i, handle->format);
             return false;
@@ -1420,7 +1473,7 @@ static bool exynos5_compare_yuvlayer_config(hwc_layer_1_t &layer,
     new_src_cfg.h = HEIGHT(layer.sourceCrop);
     new_src_cfg.fh = src_handle->vstride;
     new_src_cfg.format = src_handle->format;
-    new_src_cfg.drmMode = !!(src_handle->flags & GRALLOC_USAGE_PROTECTED);
+    new_src_cfg.drmMode = !!(exynos5_get_drmMode(src_handle->flags) == SECURE_DRM);
 
     new_dst_cfg.x = layer.displayFrame.left;
     new_dst_cfg.y = layer.displayFrame.top;
@@ -1442,10 +1495,70 @@ static bool exynos5_compare_yuvlayer_config(hwc_layer_1_t &layer,
 }
 #endif
 
+#ifdef SKIP_STATIC_LAYER_COMP
+static void exynos5_skip_static_layers(exynos5_hwc_composer_device_1_t *pdev,
+        hwc_display_contents_1_t* contents)
+{
+    static int init_flag = 0;
+    int last_ovly_lay_idx = -1;
+
+    pdev->virtual_ovly_flag = 0;
+    pdev->last_ovly_win_idx = -1;
+    if (contents->flags & HWC_GEOMETRY_CHANGED) {
+        init_flag = 0;
+        return;
+    }
+
+    for (size_t i = 0; i < NUM_HW_WINDOWS; i++) {
+        if (pdev->bufs.overlay_map[i] != -1) {
+            last_ovly_lay_idx = pdev->bufs.overlay_map[i];
+            pdev->last_ovly_win_idx = i;
+            break;
+        }
+    }
+
+    if ((last_ovly_lay_idx == -1) || (last_ovly_lay_idx >= (contents->numHwLayers - 2)) ||
+        ((contents->numHwLayers - last_ovly_lay_idx - 1) >= NUM_VIRT_OVER)) {
+        init_flag = 0;
+        return;
+    }
+    pdev->last_ovly_lay_idx = last_ovly_lay_idx;
+    last_ovly_lay_idx++;
+    if (init_flag == 1) {
+        for (size_t i = last_ovly_lay_idx; i < contents->numHwLayers -1; i++) {
+            hwc_layer_1_t &layer = contents->hwLayers[i];
+            if (!layer.handle || (pdev->last_lay_hnd[i - last_ovly_lay_idx] !=  layer.handle)) {
+                init_flag = 0;
+                return;
+            }
+        }
+
+        pdev->virtual_ovly_flag = 1;
+        for (size_t i = last_ovly_lay_idx; i < contents->numHwLayers-1; i++) {
+            hwc_layer_1_t &layer = contents->hwLayers[i];
+            if (layer.compositionType == HWC_FRAMEBUFFER)
+                layer.compositionType = HWC_OVERLAY;
+        }
+        return;
+    }
+
+    init_flag = 1;
+    for (size_t i = last_ovly_lay_idx; i < contents->numHwLayers; i++) {
+        hwc_layer_1_t &layer = contents->hwLayers[i];
+        pdev->last_lay_hnd[i - last_ovly_lay_idx] = layer.handle;
+    }
+
+    for (size_t i = contents->numHwLayers - last_ovly_lay_idx; i < NUM_VIRT_OVER; i++)
+        pdev->last_lay_hnd[i - last_ovly_lay_idx] = 0;
+
+    return;
+}
+#endif
+
 static int exynos5_prepare_fimd(exynos5_hwc_composer_device_1_t *pdev,
         hwc_display_contents_1_t* contents)
 {
-    ALOGV("hwc preparing %u layers for FIMD", contents->numHwLayers);
+    ALOGV("preparing %u layers for FIMD", contents->numHwLayers);
 
     memset(pdev->bufs.gsc_map, 0, sizeof(pdev->bufs.gsc_map));
 
@@ -1461,7 +1574,7 @@ static int exynos5_prepare_fimd(exynos5_hwc_composer_device_1_t *pdev,
         hwc_layer_1_t &layer = contents->hwLayers[i];
         if (layer.handle) {
             private_handle_t *handle = private_handle_t::dynamicCast(layer.handle);
-            if (handle->flags & GRALLOC_USAGE_PROTECTED) {
+            if (exynos5_get_drmMode(handle->flags) != NO_DRM) {
                 ALOGV("included protected layer, should use GSC M2M");
                 goto retry;
             }
@@ -1585,12 +1698,21 @@ retry:
             fb_rect.right = pdev->xres - 1;
             fb_rect.bottom = pdev->yres - 1;
             pixels_left = MAX_PIXELS - pdev->xres * pdev->yres;
+#ifdef USE_FB_PHY_LINEAR
+            windows_left = NUM_HW_WIN_FB_PHY - 1;
+#else
             windows_left = NUM_HW_WINDOWS - 1;
+#endif
+
             rects.push_back(fb_rect);
         }
         else {
             pixels_left = MAX_PIXELS;
+#ifdef USE_FB_PHY_LINEAR
+            windows_left = 1;
+#else
             windows_left = NUM_HW_WINDOWS;
+#endif
         }
 
         changed = false;
@@ -1701,8 +1823,8 @@ retry:
                         private_handle_t::dynamicCast(layer.handle);
                 if (exynos5_requires_gscaler(layer, handle->format)) {
 #ifdef HWC_SERVICES
-                    if (pdev->hdmi_hpd && (handle->flags & GRALLOC_USAGE_PROTECTED) &&
-                        (!pdev->video_playback_status)) {
+                    if (pdev->hdmi_hpd && (exynos5_get_drmMode(handle->flags) == SECURE_DRM)
+                        && (!pdev->video_playback_status)) {
                         /*
                          * video is a DRM content and play status is normal. video display is going to be
                          * skipped on LCD.
@@ -1734,6 +1856,11 @@ retry:
             nextWindow++;
         }
     }
+#ifdef SKIP_STATIC_LAYER_COMP
+    exynos5_skip_static_layers(pdev, contents);
+    if (pdev->virtual_ovly_flag)
+        fb_needed = 0;
+#endif
 
 #ifdef FORCEFB_YUVLAYER
     pdev->gsc_use = gsc_used;
@@ -1813,7 +1940,7 @@ static int exynos5_config_gsc_localout(exynos5_hwc_composer_device_1_t *pdev,
         src_cfg.vaddr = src_handle->fd2;
     }
     src_cfg.format = src_handle->format;
-    src_cfg.drmMode = !!(src_handle->flags & GRALLOC_USAGE_PROTECTED);
+    src_cfg.drmMode = !!(exynos5_get_drmMode(src_handle->flags) == SECURE_DRM);
     src_cfg.acquireFenceFd = layer.acquireFenceFd;
 
     dst_cfg.x = layer.displayFrame.left;
@@ -1903,7 +2030,7 @@ err_gsc_local:
 static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
         hwc_display_contents_1_t* contents)
 {
-    ALOGV("hwc preparing %u layers for HDMI", contents->numHwLayers);
+    ALOGV("preparing %u layers for HDMI", contents->numHwLayers);
     hwc_layer_1_t *video_layer = NULL;
 #if defined(GSC_VIDEO)
     int numVideoLayers = 0;
@@ -1928,8 +2055,10 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
         hwc_layer_1_t &layer = contents->hwLayers[i];
         if (layer.handle) {
             private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
-            if ((h->flags & GRALLOC_USAGE_EXTERNAL_DISP) ||
-                (h->flags & GRALLOC_USAGE_EXTERNAL_ONLY) ||
+            if ((h->flags & GRALLOC_USAGE_EXTERNAL_ONLY) ||
+#if defined(GSC_VIDEO)
+                (h->flags & GRALLOC_USAGE_EXTERNAL_DISP) ||
+#endif
                 (h->flags & GRALLOC_USAGE_EXTERNAL_VIRTUALFB) ||
                 (h->flags & GRALLOC_USAGE_EXTERNAL_FLEXIBLE)) {
                 pdev->num_of_ext_disp_layer++;
@@ -2000,6 +2129,7 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 #endif
                 /* EXTENTION mode */
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
+#ifdef USES_U4A
                 if (pdev->num_of_ext_vfb_layer) {
                     if (h->flags & GRALLOC_USAGE_EXTERNAL_VIRTUALFB) {
                         if (!pdev->already_mapped_vfb) {
@@ -2027,6 +2157,7 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                     }
                     continue;
                 }
+#endif
                 /* if there is a blocking_layer, only display it, others ignore */
                 if (pdev->use_blocking_layer) {
                     if (h->flags & GRALLOC_USAGE_EXTERNAL_BLOCK) {
@@ -2067,10 +2198,10 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 #endif
 
 #if defined(GSC_VIDEO)
-                    if (((h->flags & GRALLOC_USAGE_PROTECTED) || (h->flags & GRALLOC_USAGE_EXTERNAL_DISP)) &&
+                    if (((exynos5_get_drmMode(h->flags) == SECURE_DRM) || (h->flags & GRALLOC_USAGE_EXTERNAL_DISP)) &&
                         exynos5_supports_gscaler(layer, h->format, false)) {
 #else
-                    if (h->flags & GRALLOC_USAGE_PROTECTED) {
+                    if (exynos5_get_drmMode(h->flags) == SECURE_DRM) {
 #endif
 #if !defined(GSC_VIDEO)
                             if (!video_layer) {
@@ -2092,7 +2223,9 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 #endif
                     }
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
+#if defined(GSC_VIDEO)
                     if (numVideoLayers <= 1) {
+#endif
                         if (pdev->num_of_ext_only_layer || pdev->num_of_ext_flexible_layer) {
                             /* this surface will display external with scaling */
                             if (h->flags & GRALLOC_USAGE_EXTERNAL_ONLY) {
@@ -2129,9 +2262,12 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                                 layer.compositionType = HWC_FRAMEBUFFER;
                             }
                         }
+
+#if defined(GSC_VIDEO)
                     } else {
                         layer.compositionType = HWC_FRAMEBUFFER;
                     }
+#endif
 #endif
 
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
@@ -2150,12 +2286,14 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 #if defined(HWC_SERVICES)
             if (!pdev->mUseSubtitles || i == videoIndex) {
 #endif
+#ifdef USE_GRALLOC_FLAG_FOR_HDMI
                 if (i == videoIndex) {
                     layer.compositionType = HWC_OVERLAY;
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
                     layer.flags &= ~HWC_SKIP_HDMI_RENDERING;
-#endif
                 }
+#else
+                layer.compositionType = HWC_OVERLAY;
+#endif
 #if defined(HWC_SERVICES)
             }
 #endif
@@ -2222,11 +2360,16 @@ static int exynos5_prepare_wfd(exynos5_hwc_composer_device_1_t *pdev,
             continue;
         }
 
+#if defined(GSC_VIDEO)
         if (layer.handle) {
             private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
 
-            if ((h->flags & GRALLOC_USAGE_PROTECTED) || (h->flags & GRALLOC_USAGE_EXTERNAL_DISP) &&
+            if ((exynos5_get_drmMode(h->flags) == SECURE_DRM) || (h->flags & GRALLOC_USAGE_EXTERNAL_DISP) &&
+#ifdef SUPPORT_GSC_LOCAL_PATH
+                (exynos5_supports_gscaler(pdev, layer, h->format, false, 0))) {
+#else
                 (exynos5_supports_gscaler(layer, h->format, false))) {
+#endif
 
                 if (!video_layer) {
                     video_layer = &layer;
@@ -2235,7 +2378,7 @@ static int exynos5_prepare_wfd(exynos5_hwc_composer_device_1_t *pdev,
                     struct v4l2_rect dest_rect;
 
                     hdmi_cal_dest_rect(WIDTH(layer.sourceCrop), HEIGHT(layer.sourceCrop),
-                            pdev->wfd_w, pdev->wfd_h, &dest_rect);
+                            pdev->disp_w, pdev->disp_h, &dest_rect);
                     layer.displayFrame.left = dest_rect.left;
                     layer.displayFrame.top = dest_rect.top;
                     layer.displayFrame.right = dest_rect.width + dest_rect.left;
@@ -2247,7 +2390,7 @@ static int exynos5_prepare_wfd(exynos5_hwc_composer_device_1_t *pdev,
                 }
             }
         }
-
+#endif
         layer.compositionType = HWC_FRAMEBUFFER;
         dump_layer(&layer);
     }
@@ -2308,15 +2451,21 @@ static int exynos5_prepare(hwc_composer_device_1_t *dev,
 }
 
 static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
-        alloc_device_t* alloc_device, exynos5_gsc_data_t *gsc_data,
+        exynos5_hwc_composer_device_1_t *pdev, exynos5_gsc_data_t *gsc_data,
         int gsc_idx, int dst_format, hwc_rect_t *sourceCrop)
 {
     ALOGV("configuring gscaler %u for memory-to-memory", AVAILABLE_GSC_UNITS[gsc_idx]);
 
+    alloc_device_t* alloc_device = pdev->alloc_device;
     private_handle_t *src_handle = private_handle_t::dynamicCast(layer.handle);
     buffer_handle_t dst_buf;
     private_handle_t *dst_handle;
     int ret = 0;
+#if USES_WFD
+    int wfd_w = ALIGN(pdev->wfd_w, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
+    int wfd_disp_w = ALIGN(pdev->wfd_disp_w, 2);
+    int wfd_disp_h = ALIGN(pdev->wfd_disp_h, 2);
+#endif
 
     exynos_gsc_img src_cfg, dst_cfg;
     memset(&src_cfg, 0, sizeof(src_cfg));
@@ -2345,15 +2494,25 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
         src_cfg.vaddr = src_handle->fd2;
     }
     src_cfg.format = exynos5_format_to_gsc_format(src_handle->format);
-    src_cfg.drmMode = !!(src_handle->flags & GRALLOC_USAGE_PROTECTED);
+    src_cfg.drmMode = !!(exynos5_get_drmMode(src_handle->flags) == SECURE_DRM);
     src_cfg.acquireFenceFd = layer.acquireFenceFd;
     src_cfg.mem_type = GSC_MEM_DMABUF;
     layer.acquireFenceFd = -1;
 
-    dst_cfg.x = 0;
-    dst_cfg.y = 0;
-    dst_cfg.w = WIDTH(layer.displayFrame);
-    dst_cfg.h = HEIGHT(layer.displayFrame);
+#if USES_WFD
+    if (dst_format == EXYNOS5_WFD_FORMAT) {
+        dst_cfg.x = (wfd_w - wfd_disp_w) / 2;
+        dst_cfg.y = (pdev->wfd_h - wfd_disp_h) / 2;
+        dst_cfg.w = wfd_disp_w;
+        dst_cfg.h = wfd_disp_h;
+    } else
+#endif
+    {
+        dst_cfg.x = 0;
+        dst_cfg.y = 0;
+        dst_cfg.w = WIDTH(layer.displayFrame);
+        dst_cfg.h = HEIGHT(layer.displayFrame);
+    }
     dst_cfg.rot = layer.transform;
     dst_cfg.drmMode = src_cfg.drmMode;
     dst_cfg.format = dst_format;
@@ -2372,16 +2531,24 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
         int dst_stride;
         int usage = GRALLOC_USAGE_SW_READ_NEVER |
                 GRALLOC_USAGE_SW_WRITE_NEVER |
+#ifdef USE_FB_PHY_LINEAR
+                ((gsc_idx == FIMD_GSC_IDX) ? GRALLOC_USAGE_HW_FB_PHY_LINEAR : 0) |
+#endif
                 GRALLOC_USAGE_HW_COMPOSER;
 
-        if (src_handle->flags & GRALLOC_USAGE_PROTECTED)
+        if (exynos5_get_drmMode(src_handle->flags) == SECURE_DRM) {
             usage |= GRALLOC_USAGE_PROTECTED;
+            usage &= ~GRALLOC_USAGE_PRIVATE_NONSECURE;
+        } else if (exynos5_get_drmMode(src_handle->flags) == NORMAL_DRM) {
+            usage |= GRALLOC_USAGE_PROTECTED;
+            usage |= GRALLOC_USAGE_PRIVATE_NONSECURE;
+        }
 
         int w, h;
 #if USES_WFD
         if (dst_format == EXYNOS5_WFD_FORMAT) {
-            w = ALIGN(dst_cfg.w, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
-            h = ALIGN(dst_cfg.h, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
+            w = wfd_w;
+            h = pdev->wfd_h;
         } else
 #endif
         {
@@ -2407,6 +2574,16 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
             int ret = alloc_device->alloc(alloc_device, w, h,
                     format, usage, &gsc_data->dst_buf[i],
                     &dst_stride);
+#ifdef USES_WFD
+             if (dst_format == EXYNOS5_WFD_FORMAT) {
+                 /* Default color will be black */
+                 char * uv_addr;
+                 dst_handle = private_handle_t::dynamicCast(gsc_data->dst_buf[i]);
+                 uv_addr = (char *)ion_map(dst_handle->fd1, w * h / 2, 0);
+                 memset(uv_addr, 0x7f, w * h / 2);
+             }
+#endif
+
             if (ret < 0) {
                 ALOGE("failed to allocate destination buffer: %s",
                         strerror(-ret));
@@ -2415,7 +2592,29 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
         }
 
         gsc_data->current_buf = 0;
+#ifdef GSC_SKIP_DUPLICATE_FRAME_PROCESSING
+        gsc_data->last_gsc_lay_hnd = 0;
+#endif
     }
+
+#ifdef GSC_SKIP_DUPLICATE_FRAME_PROCESSING
+    if (gsc_data->last_gsc_lay_hnd == (uint32_t)layer.handle) {
+        if (layer.acquireFenceFd)
+            close(layer.acquireFenceFd);
+
+        layer.releaseFenceFd = -1;
+        gsc_data->dst_cfg.releaseFenceFd = -1;
+
+        gsc_data->current_buf = (gsc_data->current_buf + NUM_GSC_DST_BUFS - 1) % NUM_GSC_DST_BUFS;
+        if (gsc_data->dst_buf_fence[gsc_data->current_buf]) {
+            close (gsc_data->dst_buf_fence[gsc_data->current_buf]);
+            gsc_data->dst_buf_fence[gsc_data->current_buf] = -1;
+        }
+        return 0;
+    } else {
+        gsc_data->last_gsc_lay_hnd = (uint32_t)layer.handle;
+    }
+#endif
 
     dst_buf = gsc_data->dst_buf[gsc_data->current_buf];
     dst_handle = private_handle_t::dynamicCast(dst_buf);
@@ -2668,7 +2867,7 @@ static int exynos5_post_fimd(exynos5_hwc_composer_device_1_t *pdev,
                         gsc_idx = FIMD_GSC_TB_IDX;
                 }
 #endif
-                int err = exynos5_config_gsc_m2m(layer, pdev->alloc_device, &gsc,
+                int err = exynos5_config_gsc_m2m(layer, pdev, &gsc,
                         gsc_idx, dst_format, &sourceCrop);
                 if (err < 0) {
                     ALOGE("failed to configure gscaler %u for layer %u",
@@ -2728,6 +2927,19 @@ static int exynos5_post_fimd(exynos5_hwc_composer_device_1_t *pdev,
             pdev->gsc[FIMD_GSC_IDX].gsc = NULL;
             pdev->gsc[FIMD_GSC_IDX].gsc_mode = exynos5_gsc_map_t::GSC_NONE;
 #endif
+        }
+    }
+#endif
+
+#ifdef SKIP_STATIC_LAYER_COMP
+    if (pdev->virtual_ovly_flag) {
+        memcpy(&win_data.config[pdev->last_ovly_win_idx + 1],
+            &pdev->last_config[pdev->last_ovly_win_idx + 1], sizeof(struct s3c_fb_win_config));
+        win_data.config[pdev->last_ovly_win_idx + 1].fence_fd = -1;
+        for (size_t i = pdev->last_ovly_lay_idx + 1; i < contents->numHwLayers; i++) {
+            hwc_layer_1_t &layer = contents->hwLayers[i];
+            if (layer.compositionType == HWC_OVERLAY)
+              layer.releaseFenceFd = layer.acquireFenceFd;
         }
     }
 #endif
@@ -2853,10 +3065,9 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
     hwc_layer_1_t *fb_layer = NULL;
     hwc_layer_1_t *video_layer = NULL;
 
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
-    int cnt_layer_for_external = 0;
     buffer_handle_t *dst_buf;
     int use_composite_buffer_for_external = 0;
+#ifdef USE_GRALLOC_FLAG_FOR_HDMI
     bool need_clear_composite_buffer = true;
 #endif
 
@@ -2934,12 +3145,12 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
             private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
 
 #if defined(GSC_VIDEO)
-            if ((h->flags & GRALLOC_USAGE_PROTECTED) || (h->flags & GRALLOC_USAGE_EXTERNAL_DISP)) {
+            if ((exynos5_get_drmMode(h->flags) == SECURE_DRM) || (h->flags & GRALLOC_USAGE_EXTERNAL_DISP)) {
 #else
-            if (h->flags & GRALLOC_USAGE_PROTECTED) {
+            if (exynos5_get_drmMode(h->flags) == SECURE_DRM) {
 #endif
                 exynos5_gsc_data_t &gsc = pdev->gsc[HDMI_GSC_IDX];
-                int ret = exynos5_config_gsc_m2m(layer, pdev->alloc_device, &gsc,
+                int ret = exynos5_config_gsc_m2m(layer, pdev, &gsc,
                                                  gsc_idx,
                                                  HAL_PIXEL_FORMAT_RGBX_8888, NULL);
                 if (ret < 0) {
@@ -2963,9 +3174,13 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
             if (h->flags & GRALLOC_USAGE_EXTERNAL_VIRTUALFB) {
+#ifdef USES_U4A
+#if 0
+                /* get the latest buffer by offset */
                 struct fb_var_screeninfo info;
                 if (ioctl(pdev->vfb_fd, FBIOGET_VSCREENINFO, &info) == -1)
                     ALOGE("FBIOGET_VSCREENINFO ioctl failed: %s", strerror(errno));
+#endif
 
                 private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
                 hwc_layer_1_t dst_layer;
@@ -2975,13 +3190,20 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                 dst_layer.displayFrame.bottom = pdev->hdmi_h;
                 layer.releaseFenceFd = layer.acquireFenceFd;
 
+#if 0
+                /* this code will be used to display the latest buffer by offset */
                 int index = info.yoffset / HEIGHT(dst_layer.displayFrame);
                 int surface_fd = pdev->surface_fd_for_vfb[index];
                 if ((index < NUM_BUFFER_U4A) && surface_fd != -1) {
                     h->fd = surface_fd;
                     hdmi_output(pdev, pdev->hdmi_layers[0], dst_layer, h, -1, NULL);
                 }
+#else
+                hdmi_output(pdev, pdev->hdmi_layers[0], dst_layer, h, layer.acquireFenceFd,
+                        &layer.releaseFenceFd);
+#endif
                 video_layer = &layer;
+#endif
             } else if (h->flags & GRALLOC_USAGE_EXTERNAL_FLEXIBLE) {
                 if (pdev->is_change_external_surface) {
                     if (video_layer) {
@@ -3083,13 +3305,11 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
         }
     }
 
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
     if (use_composite_buffer_for_external) {
         pdev->composite_buf_index++;
         if (pdev->composite_buf_index == NUM_COMPOSITE_BUFFER_FOR_EXTERNAL)
             pdev->composite_buf_index = 0;
     }
-#endif
 
     if (!video_layer && !pdev->local_external_display_pause) {
         hdmi_disable_layer(pdev, pdev->hdmi_layers[0]);
@@ -3172,14 +3392,13 @@ static int exynos5_set_wfd(exynos5_hwc_composer_device_1_t *pdev,
     if (overlay_layer || target_layer) {
         exynos5_gsc_data_t &gsc = pdev->gsc[HDMI_GSC_IDX];
         overlay_layer = overlay_layer == NULL? target_layer : overlay_layer;
-        int ret = exynos5_config_gsc_m2m(*overlay_layer, pdev->alloc_device, &gsc,
+        int ret = exynos5_config_gsc_m2m(*overlay_layer, pdev, &gsc,
                       HDMI_GSC_IDX, EXYNOS5_WFD_FORMAT, NULL);
         if (ret < 0) {
             ALOGE("failed to configure gscaler for WFD layer");
             return ret;
         }
-        pdev->wfd_w = ALIGN(gsc.dst_cfg.w, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
-        pdev->wfd_h = ALIGN(gsc.dst_cfg.h, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
+        pdev->wfd_w = ALIGN(pdev->wfd_w, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
 
         buffer_handle_t dst_buf = gsc.dst_buf[gsc.current_buf];
         wfd_output(dst_buf, pdev, &gsc, *overlay_layer);
@@ -3393,6 +3612,13 @@ static int exynos5_eventControl(struct hwc_composer_device_1 *dev, int dpy,
 static void handle_hdmi_uevent(struct exynos5_hwc_composer_device_1_t *pdev,
         const char *buff, int len)
 {
+#if USES_WFD
+    if (pdev->wfd_hpd) {
+        ALOGW("Hotplug is already used by Wifi Display");
+        return;
+    }
+#endif
+
     const char *s = buff;
     s += strlen(s) + 1;
 
@@ -3925,6 +4151,7 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
         for (size_t j = 0; j < NUM_GSC_DST_BUFS; j++)
             dev->gsc[i].dst_buf_fence[j] = -1;
 
+#if !defined(HDMI_INCAPABLE)
     dev->hdmi_mixer0 = exynos_subdev_open_devname("s5p-mixer0", O_RDWR);
     if (dev->hdmi_mixer0 < 0) {
         ALOGE("failed to open hdmi mixer0 subdev");
@@ -3947,14 +4174,14 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
         ret = dev->hdmi_layers[1].fd;
         goto err_hdmi0;
     }
-
+#endif
     dev->vsync_fd = open(VSYNC_DEV_NAME, O_RDONLY);
     if (dev->vsync_fd < 0) {
         ALOGE("failed to open vsync attribute");
         ret = dev->vsync_fd;
         goto err_hdmi1;
     }
-
+#if !defined(HDMI_INCAPABLE)
     sw_fd = open("/sys/class/switch/hdmi/state", O_RDONLY);
     if (sw_fd) {
         char val;
@@ -3966,7 +4193,7 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
             }
         }
     }
-
+#endif
     dev->base.common.tag = HARDWARE_DEVICE_TAG;
     dev->base.common.version = HWC_DEVICE_API_VERSION_1_1;
     dev->base.common.module = const_cast<hw_module_t *>(module);
@@ -4031,6 +4258,7 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
     dev->composite_buf_height = 0;
     dev->already_mapped_vfb = false;
 
+#ifdef USES_U4A
     struct fb_var_screeninfo var_info;
     struct s3cfb_user_window window;
     int vfb_fd;
@@ -4077,6 +4305,7 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
     dev->vfb_fd = vfb_fd;
     for (int i = 0; i < NUM_BUFFER_U4A; i++)
         dev->surface_fd_for_vfb[i] = -1;
+#endif
 
     for (int i = 0; i < NUM_FB_TARGET; i++) {
         dev->fb_target_info[i].fd = -1;

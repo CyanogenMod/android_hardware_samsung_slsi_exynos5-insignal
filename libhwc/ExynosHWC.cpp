@@ -541,7 +541,7 @@ static bool exynos5_blending_is_supported(int32_t blending)
     return exynos5_blending_to_s3c_blending(blending) < S3C_FB_BLENDING_MAX;
 }
 
-#if defined(USE_GRALLOC_FLAG_FOR_HDMI)
+#ifdef USE_GRALLOC_FLAG_FOR_HDMI
 static inline rotation rotateValueHAL2G2D(unsigned char transform)
 {
     int rotate_flag = transform & 0x7;
@@ -796,7 +796,7 @@ static buffer_handle_t *exynos5_external_layer_composite(exynos5_hwc_composer_de
     int ret;
     hwc_layer_1_t &layer = src_layer;
 
-    /* if resolution change, realloc(free and alloc) composition buffer */
+    /* if resolution change, it first free composition buffer */
     if ((pdev->composite_buf_width && (pdev->composite_buf_width != pdev->hdmi_w)) &&
             (pdev->composite_buf_height && (pdev->composite_buf_height != pdev->hdmi_h))) {
         for (size_t i = 0; i < NUM_COMPOSITE_BUFFER_FOR_EXTERNAL; i++) {
@@ -808,6 +808,7 @@ static buffer_handle_t *exynos5_external_layer_composite(exynos5_hwc_composer_de
         }
     }
 
+    /* allocate composition buffer */
     for (size_t i = 0; i < NUM_COMPOSITE_BUFFER_FOR_EXTERNAL; i++) {
         if (!pdev->composite_buffer_for_external[i]) {
             int dst_stride;
@@ -827,12 +828,13 @@ static buffer_handle_t *exynos5_external_layer_composite(exynos5_hwc_composer_de
             pdev->composite_buf_height = pdev->hdmi_h;
             buffer_handle_t dst_buf = pdev->composite_buffer_for_external[i];
             private_handle_t *dst_handle = private_handle_t::dynamicCast(dst_buf);
-            pdev->va_composite_buffer_for_external[i] = (unsigned long)ion_map(dst_handle->fd, pdev->hdmi_w * pdev->hdmi_h * 4, 0);
+            pdev->va_composite_buffer_for_external[i]
+                = (unsigned long)ion_map(dst_handle->fd, pdev->composite_buf_width * pdev->composite_buf_height * 4, 0);
             ALOGD("composite_buffer_for_external[%d] ion_mapped address: 0x%08x\n", i, pdev->va_composite_buffer_for_external[i]);
         }
     }
 
-    buffer_handle_t dst_buf = pdev->composite_buffer_for_external[pdev->composite_buf_index];
+    buffer_handle_t dst_buf = pdev->composite_buffer_for_external[buf_index];
     private_handle_t *dst_handle = private_handle_t::dynamicCast(dst_buf);
 
     unsigned long srcAddr = 0;
@@ -844,11 +846,11 @@ static buffer_handle_t *exynos5_external_layer_composite(exynos5_hwc_composer_de
     /* clear composite buffer */
     if (clear)
         ret = runCompositor(pdev, layer, dst_handle, 0, 0xff, 0xff000000, BLIT_OP_SRC_OVER, true,
-                0, pdev->va_composite_buffer_for_external[pdev->composite_buf_index]);
+                0, pdev->va_composite_buffer_for_external[buf_index]);
 
     /* composite src buffer to dest buffer */
     ret = runCompositor(pdev, layer, dst_handle, 0, 0xff, NULL, BLIT_OP_SRC, false, srcAddr,
-            pdev->va_composite_buffer_for_external[pdev->composite_buf_index]);
+            pdev->va_composite_buffer_for_external[buf_index]);
 
     return &dst_buf;
 }
@@ -3068,9 +3070,9 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
     hwc_layer_1_t *fb_layer = NULL;
     hwc_layer_1_t *video_layer = NULL;
 
-    buffer_handle_t *dst_buf;
-    int use_composite_buffer_for_external = 0;
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
+    buffer_handle_t *dst_buf;
+    bool use_composite_buffer_for_external = false;
     bool need_clear_composite_buffer = true;
 #endif
 
@@ -3178,33 +3180,40 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
             if (h->flags & GRALLOC_USAGE_EXTERNAL_VIRTUALFB) {
 #ifdef USES_U4A
+                if (pdev->prev_handle_vfb != h) {
 #if 0
-                /* get the latest buffer by offset */
-                struct fb_var_screeninfo info;
-                if (ioctl(pdev->vfb_fd, FBIOGET_VSCREENINFO, &info) == -1)
-                    ALOGE("FBIOGET_VSCREENINFO ioctl failed: %s", strerror(errno));
+                    /* get the latest buffer by offset */
+                    struct fb_var_screeninfo info;
+                    if (ioctl(pdev->vfb_fd, FBIOGET_VSCREENINFO, &info) == -1)
+                        ALOGE("FBIOGET_VSCREENINFO ioctl failed: %s", strerror(errno));
 #endif
 
-                private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
-                hwc_layer_1_t dst_layer;
-                dst_layer.displayFrame.left = 0;
-                dst_layer.displayFrame.right = pdev->hdmi_w;
-                dst_layer.displayFrame.top = 0;
-                dst_layer.displayFrame.bottom = pdev->hdmi_h;
-                layer.releaseFenceFd = layer.acquireFenceFd;
+                    private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
+                    hwc_layer_1_t dst_layer;
+                    dst_layer.displayFrame.left = 0;
+                    dst_layer.displayFrame.right = pdev->hdmi_w;
+                    dst_layer.displayFrame.top = 0;
+                    dst_layer.displayFrame.bottom = pdev->hdmi_h;
+                    layer.releaseFenceFd = layer.acquireFenceFd;
 
 #if 0
-                /* this code will be used to display the latest buffer by offset */
-                int index = info.yoffset / HEIGHT(dst_layer.displayFrame);
-                int surface_fd = pdev->surface_fd_for_vfb[index];
-                if ((index < NUM_BUFFER_U4A) && surface_fd != -1) {
-                    h->fd = surface_fd;
-                    hdmi_output(pdev, pdev->hdmi_layers[0], dst_layer, h, -1, NULL);
-                }
+                    /* this code will be used to display the latest buffer by offset */
+                    int index = info.yoffset / HEIGHT(dst_layer.displayFrame);
+                    int surface_fd = pdev->surface_fd_for_vfb[index];
+                    if ((index < NUM_BUFFER_U4A) && surface_fd != -1) {
+                        h->fd = surface_fd;
+                        hdmi_output(pdev, pdev->hdmi_layers[0], dst_layer, h, -1, NULL);
+                    }
 #else
-                hdmi_output(pdev, pdev->hdmi_layers[0], dst_layer, h, layer.acquireFenceFd,
-                        &layer.releaseFenceFd);
+                    hdmi_output(pdev, pdev->hdmi_layers[0], dst_layer, h, layer.acquireFenceFd,
+                            &layer.releaseFenceFd);
 #endif
+                } else {
+                    if (layer.acquireFenceFd)
+                        close(layer.acquireFenceFd);
+                    layer.releaseFenceFd = -1;
+                }
+                pdev->prev_handle_vfb = h;
                 video_layer = &layer;
 #endif
             } else if (h->flags & GRALLOC_USAGE_EXTERNAL_FLEXIBLE) {
@@ -3233,7 +3242,7 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                         hdmi_output(pdev, pdev->hdmi_layers[1], dst_layer, dst_h, layer.acquireFenceFd,
                                 &layer.releaseFenceFd);
                         fb_layer = &layer;
-                        use_composite_buffer_for_external = 1;
+                        use_composite_buffer_for_external = true;
                     }
                 } else {
                     layer.releaseFenceFd = layer.acquireFenceFd;
@@ -3258,7 +3267,7 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                     hdmi_output(pdev, pdev->hdmi_layers[1], dst_layer, dst_h, layer.acquireFenceFd,
                             &layer.releaseFenceFd);
                     fb_layer = &layer;
-                    use_composite_buffer_for_external = 1;
+                    use_composite_buffer_for_external = true;
                 } else {
                     layer.releaseFenceFd = layer.acquireFenceFd;
                     fb_layer = &layer;
@@ -3295,7 +3304,7 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                 dst_layer.displayFrame.bottom = pdev->hdmi_h;
 
                 hdmi_output(pdev, pdev->hdmi_layers[1], dst_layer, dst_h, -1, NULL);
-                use_composite_buffer_for_external = 1;
+                use_composite_buffer_for_external = true;
             } else {
 #endif
                 private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
@@ -3308,11 +3317,13 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
         }
     }
 
+#ifdef USE_GRALLOC_FLAG_FOR_HDMI
     if (use_composite_buffer_for_external) {
         pdev->composite_buf_index++;
         if (pdev->composite_buf_index == NUM_COMPOSITE_BUFFER_FOR_EXTERNAL)
             pdev->composite_buf_index = 0;
     }
+#endif
 
     if (!video_layer && !pdev->local_external_display_pause) {
         hdmi_disable_layer(pdev, pdev->hdmi_layers[0]);

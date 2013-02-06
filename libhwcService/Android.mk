@@ -46,6 +46,10 @@ ifeq ($(BOARD_USES_CEC),true)
 	LOCAL_CFLAGS += -DUSES_CEC
 endif
 
+ifeq ($(BOARD_TV_PRIMARY),true)
+	LOCAL_CFLAGS += -DTV_PRIMARY
+endif
+
 LOCAL_MODULE := libExynosHWCService
 LOCAL_MODULE_TAGS := optional
 include $(BUILD_SHARED_LIBRARY)

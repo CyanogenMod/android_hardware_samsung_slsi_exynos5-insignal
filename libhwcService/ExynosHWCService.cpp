@@ -38,7 +38,16 @@ ExynosHWCService::~ExynosHWCService()
 int ExynosHWCService::setWFDMode(unsigned int mode)
 {
     ALOGD_IF(HWC_SERVICE_DEBUG, "%s::mode=%d", __func__, mode);
+#ifdef TV_PRIMARY
+#ifdef USES_WFD
+    mHWCCtx->wfd_hpd = !!mode;
+    mHWCCtx->procs->invalidate(mHWCCtx->procs);
 
+    return NO_ERROR;
+#else
+    return INVALID_OPERATION;
+#endif
+#else
 #ifdef USES_WFD
     if (mHWCCtx->hdmi_hpd != true) {
         mHWCCtx->wfd_hpd = !!mode;
@@ -53,6 +62,7 @@ int ExynosHWCService::setWFDMode(unsigned int mode)
     return NO_ERROR;
 #else
     return INVALID_OPERATION;
+#endif
 #endif
 }
 

@@ -279,7 +279,7 @@ public:
         remote()->transact(GET_WFD_OUTPUT_INFO, data, &reply);
         *fd1 = dup(reply.readFileDescriptor());
         *fd2 = dup(reply.readFileDescriptor());
-        reply.read(wfd_info, sizeof(wfd_info));
+        reply.read(wfd_info, sizeof(struct wfd_layer_t));
     }
 
     virtual int getPresentationMode(void)
@@ -493,7 +493,7 @@ status_t BnExynosHWCService::onTransact(
             getWFDOutputInfo(&fd1, &fd2, &wfd_info);
             reply->writeFileDescriptor(fd1);
             reply->writeFileDescriptor(fd2);
-            reply->write(&wfd_info, sizeof(wfd_info));
+            reply->write(&wfd_info, sizeof(struct wfd_layer_t));
             return NO_ERROR;
         } break;
         case GET_PRESENTATION_MODE: {

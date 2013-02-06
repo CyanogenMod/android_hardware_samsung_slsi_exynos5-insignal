@@ -72,6 +72,7 @@ const size_t GSC_W_ALIGNMENT = 16;
 const size_t GSC_H_ALIGNMENT = 16;
 const size_t GSC_DST_H_ALIGNMENT_RGB888 = 1;
 const size_t FIMD_GSC_IDX = 0;
+const size_t WFD_GSC_IDX = 0;
 const size_t HDMI_GSC_IDX = 1;
 const size_t FIMD_GSC_SBS_IDX = 2;
 const size_t FIMD_GSC_TB_IDX = 3;

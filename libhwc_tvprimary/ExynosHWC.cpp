@@ -497,8 +497,9 @@ void wfd_get_config(struct exynos5_hwc_composer_device_1_t *dev)
         dev->wfd_w = EXYNOS5_WFD_OUTPUT_ALIGNMENT * 2;
     if (dev->wfd_h < EXYNOS5_WFD_OUTPUT_ALIGNMENT)
         dev->wfd_h = EXYNOS5_WFD_OUTPUT_ALIGNMENT;
-    dev->hdmi_w = dev->wfd_w;
-    dev->hdmi_h = dev->wfd_h;
+    /* hdmi doesn't relates with wfd */
+    //dev->hdmi_w = dev->wfd_w;
+    //dev->hdmi_h = dev->wfd_h;
 }
 #endif
 
@@ -2408,15 +2409,9 @@ static int exynos5_prepare(hwc_composer_device_1_t *dev,
     exynos5_hwc_composer_device_1_t *pdev =
             (exynos5_hwc_composer_device_1_t *)dev;
 
-#ifdef USES_WFD
-    if (pdev->wfd_hpd)
-         wfd_enable(pdev);
-    else
-        wfd_disable(pdev);
-#endif
-
-    hwc_display_contents_1_t *fimd_contents = displays[HWC_DISPLAY_EXTERNAL];
+    hwc_display_contents_1_t *fimd_contents = NULL;
     hwc_display_contents_1_t *hdmi_contents = displays[HWC_DISPLAY_PRIMARY];
+    hwc_display_contents_1_t *wfd_contents = displays[HWC_DISPLAY_EXTERNAL];
 
 #ifdef HWC_DYNAMIC_RECOMPOSITION
     pdev->invalidateStatus = 0;
@@ -2429,6 +2424,13 @@ static int exynos5_prepare(hwc_composer_device_1_t *dev,
         hdmi_disable(pdev);
     }
 
+#ifdef USES_WFD
+    if (pdev->wfd_hpd)
+         wfd_enable(pdev);
+    else
+        wfd_disable(pdev);
+#endif
+
     if (fimd_contents) {
         int err = exynos5_prepare_fimd(pdev, fimd_contents);
         if (err)
@@ -2437,16 +2439,17 @@ static int exynos5_prepare(hwc_composer_device_1_t *dev,
 
     if (hdmi_contents && pdev->hdmi_enabled) {
         int err = 0;
-#ifdef USES_WFD
-        if (pdev->wfd_enabled)
-            err = exynos5_prepare_wfd(pdev, hdmi_contents);
-        else
-#endif
-            err = exynos5_prepare_hdmi(pdev, hdmi_contents);
+        err = exynos5_prepare_hdmi(pdev, hdmi_contents);
         if (err)
             return err;
     }
 
+    if (wfd_contents && pdev->wfd_enabled) {
+        int err = 0;
+#ifdef USES_WFD
+        err = exynos5_prepare_wfd(pdev, wfd_contents);
+#endif
+    }
     return 0;
 }
 
@@ -2461,7 +2464,7 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
     buffer_handle_t dst_buf;
     private_handle_t *dst_handle;
     int ret = 0;
-#if USES_WFD
+#ifdef USES_WFD
     int wfd_w = ALIGN(pdev->wfd_w, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
     int wfd_disp_w = ALIGN(pdev->wfd_disp_w, 2);
     int wfd_disp_h = ALIGN(pdev->wfd_disp_h, 2);
@@ -2499,7 +2502,7 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
     src_cfg.mem_type = GSC_MEM_DMABUF;
     layer.acquireFenceFd = -1;
 
-#if USES_WFD
+#ifdef USES_WFD
     if (dst_format == EXYNOS5_WFD_FORMAT) {
         dst_cfg.x = (wfd_w - wfd_disp_w) / 2;
         dst_cfg.y = (pdev->wfd_h - wfd_disp_h) / 2;
@@ -2545,7 +2548,7 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
         }
 
         int w, h;
-#if USES_WFD
+#ifdef USES_WFD
         if (dst_format == EXYNOS5_WFD_FORMAT) {
             w = wfd_w;
             h = pdev->wfd_h;
@@ -3389,6 +3392,7 @@ static int exynos5_set_wfd(exynos5_hwc_composer_device_1_t *pdev,
         }
     }
 
+#if 0
     if (overlay_layer || target_layer) {
         exynos5_gsc_data_t &gsc = pdev->gsc[HDMI_GSC_IDX];
         overlay_layer = overlay_layer == NULL? target_layer : overlay_layer;
@@ -3403,6 +3407,22 @@ static int exynos5_set_wfd(exynos5_hwc_composer_device_1_t *pdev,
         buffer_handle_t dst_buf = gsc.dst_buf[gsc.current_buf];
         wfd_output(dst_buf, pdev, &gsc, *overlay_layer);
     }
+#else
+    if (overlay_layer || target_layer) {
+        exynos5_gsc_data_t &gsc = pdev->gsc[WFD_GSC_IDX];
+        overlay_layer = overlay_layer == NULL? target_layer : overlay_layer;
+        int ret = exynos5_config_gsc_m2m(*overlay_layer, pdev, &gsc,
+                      WFD_GSC_IDX, EXYNOS5_WFD_FORMAT, NULL);
+        if (ret < 0) {
+            ALOGE("failed to configure gscaler for WFD layer");
+            return ret;
+        }
+        pdev->wfd_w = ALIGN(pdev->wfd_w, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
+
+        buffer_handle_t dst_buf = gsc.dst_buf[gsc.current_buf];
+        wfd_output(dst_buf, pdev, &gsc, *overlay_layer);
+    }
+#endif
 
     return 0;
 }
@@ -3416,9 +3436,12 @@ static int exynos5_set(struct hwc_composer_device_1 *dev,
 
     exynos5_hwc_composer_device_1_t *pdev =
             (exynos5_hwc_composer_device_1_t *)dev;
-    hwc_display_contents_1_t *fimd_contents = displays[HWC_DISPLAY_EXTERNAL];
+
+    hwc_display_contents_1_t *fimd_contents = NULL;
     hwc_display_contents_1_t *hdmi_contents = displays[HWC_DISPLAY_PRIMARY];
-    int fimd_err = 0, hdmi_err = 0;
+    hwc_display_contents_1_t *wfd_contents = displays[HWC_DISPLAY_EXTERNAL];
+
+    int fimd_err = 0, hdmi_err = 0, wfd_err = 0;
 
 #ifdef HWC_DYNAMIC_RECOMPOSITION
     pdev->setCallCnt++;
@@ -3428,13 +3451,9 @@ static int exynos5_set(struct hwc_composer_device_1 *dev,
         fimd_err = exynos5_set_fimd(pdev, fimd_contents);
 
     if (hdmi_contents && pdev->hdmi_enabled) {
-#ifdef USES_WFD
-        if (pdev->wfd_enabled)
-            hdmi_err = exynos5_set_wfd(pdev, hdmi_contents);
-        else
-#endif
         hdmi_err = exynos5_set_hdmi(pdev, hdmi_contents);
     }
+#if 0
 #if defined(HWC_SERVICES)
 #if defined(S3D_SUPPORT)
     if (pdev->mS3DMode != S3D_MODE_STOPPING && !pdev->mHdmiResolutionHandled) {
@@ -3462,6 +3481,15 @@ static int exynos5_set(struct hwc_composer_device_1 *dev,
         pdev->mS3DMode = S3D_MODE_DISABLED;
 #endif
 #endif
+#endif
+
+    if (wfd_contents  && pdev->wfd_enabled) {
+#ifdef USES_WFD
+       wfd_err = exynos5_set_wfd(pdev, wfd_contents);
+       if (wfd_err)
+           return wfd_err;
+#endif
+    }
 
     if (fimd_err)
         return fimd_err;
@@ -3612,11 +3640,13 @@ static int exynos5_eventControl(struct hwc_composer_device_1 *dev, int dpy,
 static void handle_hdmi_uevent(struct exynos5_hwc_composer_device_1_t *pdev,
         const char *buff, int len)
 {
-#if USES_WFD
+#if 0
+#ifdef USES_WFD
     if (pdev->wfd_hpd) {
         ALOGW("Hotplug is already used by Wifi Display");
         return;
     }
+#endif
 #endif
 
     const char *s = buff;
@@ -3822,6 +3852,15 @@ static int exynos5_blank(struct hwc_composer_device_1 *dev, int disp, int blank)
     switch (disp) {
     case HWC_DISPLAY_EXTERNAL: {
         int fb_blank = blank ? FB_BLANK_POWERDOWN : FB_BLANK_UNBLANK;
+#ifdef USES_WFD
+        if (pdev->wfd_hpd) {
+            if (blank && !pdev->wfd_blanked)
+                wfd_disable(pdev);
+            pdev->wfd_blanked = !!blank;
+            return 0;
+//            break;
+        }
+#endif
 #ifdef SUPPORT_GSC_LOCAL_PATH
         if (pdev->gsc_use && (fb_blank == FB_BLANK_POWERDOWN)) {
             if (pdev->gsc[FIMD_GSC_IDX].gsc_mode == exynos5_gsc_map_t::GSC_LOCAL) {
@@ -3852,14 +3891,6 @@ static int exynos5_blank(struct hwc_composer_device_1 *dev, int disp, int blank)
     }
 
     case HWC_DISPLAY_PRIMARY:
-#ifdef USES_WFD
-        if (pdev->wfd_hpd) {
-            if (blank && !pdev->wfd_blanked)
-                wfd_disable(pdev);
-            pdev->wfd_blanked = !!blank;
-            break;
-        }
-#endif
         if (pdev->hdmi_hpd) {
             if (blank && !pdev->hdmi_blanked)
                 hdmi_disable(pdev);
@@ -3938,24 +3969,19 @@ static int exynos5_getDisplayConfigs(struct hwc_composer_device_1 *dev,
         return 0;
 
     if (disp == HWC_DISPLAY_EXTERNAL) {
-        configs[0] = 0;
-        *numConfigs = 0;
-        return -EINVAL;
-    } else if (disp == HWC_DISPLAY_PRIMARY) {
 #ifdef USES_WFD
-        if (((!pdev->hdmi_hpd) && (!pdev->wfd_hpd)) ||
-            ((pdev->hdmi_hpd) && (pdev->wfd_hpd)))
-            return -EINVAL;
-
-        if (pdev->hdmi_hpd) {
-            int err = hdmi_get_config(pdev);
-            if (err)
-                return -EINVAL;
-        }
+          if (!pdev->wfd_hpd) {
+              return -EINVAL;
+           }
 
         if (pdev->wfd_hpd)
             wfd_get_config(pdev);
-#else
+#endif
+        configs[0] = 0;
+        *numConfigs = 1;
+        return 0;
+        //return -EINVAL;
+    } else if (disp == HWC_DISPLAY_PRIMARY) {
         if (!pdev->hdmi_hpd) {
             configs[0] = 0;
             *numConfigs = 1;
@@ -3966,7 +3992,6 @@ static int exynos5_getDisplayConfigs(struct hwc_composer_device_1 *dev,
         if (err) {
             return -EINVAL;
         }
-#endif
         configs[0] = 0;
         *numConfigs = 1;
         return 0;
@@ -4025,6 +4050,32 @@ static int32_t exynos5_hdmi_attribute(struct exynos5_hwc_composer_device_1_t *pd
     }
 }
 
+static int32_t exynos5_wfd_attribute(struct exynos5_hwc_composer_device_1_t *pdev,
+        const uint32_t attribute)
+{
+
+    switch(attribute) {
+    case HWC_DISPLAY_VSYNC_PERIOD:
+        return pdev->vsync_period;
+
+    case HWC_DISPLAY_WIDTH:
+        return pdev->wfd_w;
+
+    case HWC_DISPLAY_HEIGHT:
+        return pdev->wfd_h;
+
+    case HWC_DISPLAY_DPI_X:
+        return pdev->xdpi;
+
+    case HWC_DISPLAY_DPI_Y:
+        return pdev->ydpi;
+
+    default:
+        ALOGE("unknown display attribute %u", attribute);
+        return -EINVAL;
+    }
+}
+
 static int exynos5_getDisplayAttributes(struct hwc_composer_device_1 *dev,
         int disp, uint32_t config, const uint32_t *attributes, int32_t *values)
 {
@@ -4033,7 +4084,7 @@ static int exynos5_getDisplayAttributes(struct hwc_composer_device_1 *dev,
 
     for (int i = 0; attributes[i] != HWC_DISPLAY_NO_ATTRIBUTE; i++) {
         if (disp == HWC_DISPLAY_EXTERNAL)
-            values[i] = exynos5_fimd_attribute(pdev, attributes[i]);
+            values[i] = exynos5_wfd_attribute(pdev, attributes[i]);
         else if (disp == HWC_DISPLAY_PRIMARY)
             values[i] = exynos5_hdmi_attribute(pdev, attributes[i]);
         else {

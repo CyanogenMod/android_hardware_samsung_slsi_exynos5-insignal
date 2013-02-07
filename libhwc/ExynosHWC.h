@@ -268,6 +268,8 @@ struct exynos5_hwc_composer_device_1_t {
     int  wfd_locked_fd;
     bool mPresentationMode;
     int wfd_skipping;
+    int wfd_sleepctrl;
+
 #endif
 
     hdmi_layer_t            hdmi_layers[2];

@@ -63,6 +63,7 @@ enum {
     GET_HDMI_CABLE_STATUS,
     GET_HDMI_RESOLUTION,
     GET_HDMI_AUDIO_CHANNEL,
+    SET_WFD_SLEEP_CTRL,
 };
 
 class BpExynosHWCService : public BpInterface<IExynosHWCService> {
@@ -94,6 +95,14 @@ public:
         int result = remote()->transact(SET_WFD_OUTPUT_RESOLUTION, data, &reply);
         result = reply.readInt32();
         return result;
+    }
+
+    virtual void setWFDSleepCtrl(bool black)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
+        data.writeInt32(black);
+        remote()->transact(SET_WFD_SLEEP_CTRL, data, &reply);
     }
 
     virtual int setExtraFBMode(unsigned int mode)
@@ -338,6 +347,12 @@ status_t BnExynosHWCService::onTransact(
             int disp_h = data.readInt32();
             int res = setWFDOutputResolution(width, height, disp_w, disp_h);
             reply->writeInt32(res);
+            return NO_ERROR;
+        } break;
+        case SET_WFD_SLEEP_CTRL: {
+            CHECK_INTERFACE(IExynosHWCService, data, reply);
+            bool mode = data.readInt32();
+            setWFDSleepCtrl(mode);
             return NO_ERROR;
         } break;
         case SET_EXT_FB_MODE: {

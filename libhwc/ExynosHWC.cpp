@@ -3471,7 +3471,7 @@ static int exynos5_set_wfd(exynos5_hwc_composer_device_1_t *pdev,
     if (overlay_layer || target_layer) {
         exynos5_gsc_data_t &gsc = pdev->gsc[HDMI_GSC_IDX];
         overlay_layer = overlay_layer == NULL? target_layer : overlay_layer;
-        if (pdev->wfd_blanked) {
+        if (pdev->wfd_sleepctrl && pdev->wfd_blanked) {
             buffer_handle_t dst_buf = gsc.dst_buf[gsc.current_buf];
             private_handle_t *handle = private_handle_t::dynamicCast(dst_buf);
 
@@ -3479,6 +3479,9 @@ static int exynos5_set_wfd(exynos5_hwc_composer_device_1_t *pdev,
             runCompositor(pdev, *overlay_layer, handle, 0, 0xff, 0xff000000,
                              BLIT_OP_SOLID_FILL, true, 0, 0);
             wfd_output(dst_buf, pdev, &gsc, *overlay_layer);
+            pdev->wfd_skipping = 1;
+        } else if (pdev->wfd_blanked) {
+            pdev->wfd_enabled = false;
             pdev->wfd_skipping = 1;
         } else {
             int ret = exynos5_config_gsc_m2m(*overlay_layer, pdev, &gsc,

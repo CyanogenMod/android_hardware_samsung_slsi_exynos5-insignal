@@ -43,6 +43,7 @@ int ExynosHWCService::setWFDMode(unsigned int mode)
     if (mHWCCtx->hdmi_hpd != true) {
         mHWCCtx->wfd_hpd = !!mode;
         mHWCCtx->procs->invalidate(mHWCCtx->procs);
+        mHWCCtx->wfd_sleepctrl = true;
     } else {
         /* HDMI and WFD runs exclusively */
         ALOGE_IF(HWC_SERVICE_DEBUG, "External Display was already enabled as HDMI.");
@@ -68,6 +69,14 @@ int ExynosHWCService::setWFDOutputResolution(unsigned int width, unsigned int he
     return NO_ERROR;
 #else
     return INVALID_OPERATION;
+#endif
+}
+
+void ExynosHWCService::setWFDSleepCtrl(bool black)
+{
+#ifdef USES_WFD
+    if (mHWCCtx->wfd_enabled)
+        mHWCCtx->wfd_sleepctrl = !!black;
 #endif
 }
 

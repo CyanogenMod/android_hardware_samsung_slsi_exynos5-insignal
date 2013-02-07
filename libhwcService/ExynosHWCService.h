@@ -92,6 +92,7 @@ public:
     virtual void setHdmiAudioChannel(uint32_t channels);
     virtual void setHdmiSubtitles(bool use);
     virtual void setPresentationMode(bool use);
+    virtual void setWFDSleepCtrl(bool black);
 
     virtual int getWFDMode();
     virtual void getWFDOutputResolution(unsigned int *width, unsigned int *height);

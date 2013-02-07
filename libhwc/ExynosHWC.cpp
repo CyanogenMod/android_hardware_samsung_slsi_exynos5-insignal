@@ -440,13 +440,17 @@ static void wfd_output(buffer_handle_t buf, exynos5_hwc_composer_device_1_t *pde
     private_handle_t *src_handle = private_handle_t::dynamicCast(layer.handle);
     private_handle_t *handle = private_handle_t::dynamicCast(buf);
 
-    pdev->wfd_buf_fd[0] = handle->fd;
-    pdev->wfd_buf_fd[1] = handle->fd1;
+    if (pdev->wfd_skipping) {
+        pdev->wfd_skipping--;
+    } else {
+        pdev->wfd_buf_fd[0] = handle->fd;
+        pdev->wfd_buf_fd[1] = handle->fd1;
 
-    pdev->wfd_info.isPresentation = !!pdev->force_mirror_mode;
-    pdev->wfd_info.isDrm = !!(exynos5_get_drmMode(src_handle->flags) == SECURE_DRM);
+        pdev->wfd_info.isPresentation = !!pdev->mPresentationMode;
+        pdev->wfd_info.isDrm = !!(exynos5_get_drmMode(src_handle->flags) == SECURE_DRM);
 
-    gettimeofday(&pdev->wfd_info.tv_stamp, NULL);
+        gettimeofday(&pdev->wfd_info.tv_stamp, NULL);
+    }
 
     if (gsc->dst_cfg.releaseFenceFd > 0)
         close(gsc->dst_cfg.releaseFenceFd);
@@ -459,6 +463,9 @@ static void wfd_output(buffer_handle_t buf, exynos5_hwc_composer_device_1_t *pde
 static int wfd_enable(struct exynos5_hwc_composer_device_1_t *dev)
 {
     if (dev->wfd_enabled)
+        return 0;
+
+    if (dev->wfd_blanked)
         return 0;
 
     if (dev->procs)
@@ -663,9 +670,20 @@ int runCompositor(exynos5_hwc_composer_device_1_t *pdev,
                 src_handle->format};
     }
 
+    int w, h;
+#ifdef USES_WFD
+    if (pdev->wfd_hpd) {
+        w = pdev->wfd_w;
+        h = pdev->wfd_h;
+    } else
+#endif
+    {
+        w = pdev->hdmi_w;
+        h = pdev->hdmi_h;
+    }
     dstImgRect = {src_layer.displayFrame.left, src_layer.displayFrame.top,
             WIDTH(src_layer.displayFrame), HEIGHT(src_layer.displayFrame),
-            pdev->hdmi_w, pdev->hdmi_h,
+            w, h,
             dst_handle->format};
 
     g2d_rotation = rotateValueHAL2G2D(transform);
@@ -729,13 +747,22 @@ int runCompositor(exynos5_hwc_composer_device_1_t *pdev,
         if (dstAddress) {
             dstYAddress = dstAddress;
         } else {
-            dstYAddress = (long unsigned)ion_map(dst_handle->fd, dstImageSize*dstG2d_bpp, 0);
+#ifdef USES_WFD
+            if (dstImgRect.colorFormat == EXYNOS5_WFD_FORMAT) {
+                dstYAddress = (long unsigned)ion_map(dst_handle->fd, dstImageSize, 0);
+                dstCbCrAddress = (long unsigned)ion_map(dst_handle->fd1, dstImageSize / 2, 0);
+            } else
+#else
+            {
+                dstYAddress = (long unsigned)ion_map(dst_handle->fd, dstImageSize*dstG2d_bpp, 0);
+            }
+#endif
             dst_ion_mapped = true;
         }
 
         dstYAddr = {addr_type, dstYAddress};
+        dstCbCrAddr = {addr_type, dstCbCrAddress};
 
-        dstCbCrAddr = {addr_type, 0};
         if (force_clear)
             dstRect = {0, 0, dstImgRect.fullW, dstImgRect.fullH};
         else
@@ -764,7 +791,16 @@ int runCompositor(exynos5_hwc_composer_device_1_t *pdev,
         ion_unmap((void *)srcYAddress, srcImageSize*srcG2d_bpp);
 
     if (dst_ion_mapped)
-        ion_unmap((void *)dstYAddress, dstImageSize*dstG2d_bpp);
+#ifdef USES_WFD
+        if (pdev->wfd_hpd) {
+            ion_unmap((void *)dstYAddress, dstImageSize);
+            ion_unmap((void *)dstCbCrAddress, dstImageSize / 2);
+        } else
+#else
+        {
+            ion_unmap((void *)dstYAddress, dstImageSize*dstG2d_bpp);
+        }
+#endif
 
     if (ret < 0) {
         ALOGE("stretch failed", __func__);
@@ -3435,16 +3471,28 @@ static int exynos5_set_wfd(exynos5_hwc_composer_device_1_t *pdev,
     if (overlay_layer || target_layer) {
         exynos5_gsc_data_t &gsc = pdev->gsc[HDMI_GSC_IDX];
         overlay_layer = overlay_layer == NULL? target_layer : overlay_layer;
-        int ret = exynos5_config_gsc_m2m(*overlay_layer, pdev, &gsc,
-                      HDMI_GSC_IDX, EXYNOS5_WFD_FORMAT, NULL);
-        if (ret < 0) {
-            ALOGE("failed to configure gscaler for WFD layer");
-            return ret;
-        }
-        pdev->wfd_w = ALIGN(pdev->wfd_w, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
+        if (pdev->wfd_blanked) {
+            buffer_handle_t dst_buf = gsc.dst_buf[gsc.current_buf];
+            private_handle_t *handle = private_handle_t::dynamicCast(dst_buf);
 
-        buffer_handle_t dst_buf = gsc.dst_buf[gsc.current_buf];
-        wfd_output(dst_buf, pdev, &gsc, *overlay_layer);
+            pdev->wfd_enabled = false;
+            runCompositor(pdev, *overlay_layer, handle, 0, 0xff, 0xff000000,
+                             BLIT_OP_SOLID_FILL, true, 0, 0);
+            wfd_output(dst_buf, pdev, &gsc, *overlay_layer);
+            pdev->wfd_skipping = 1;
+        } else {
+            int ret = exynos5_config_gsc_m2m(*overlay_layer, pdev, &gsc,
+                          HDMI_GSC_IDX, EXYNOS5_WFD_FORMAT, NULL);
+            if (ret < 0) {
+                ALOGE("failed to configure gscaler for WFD layer");
+                return ret;
+            }
+            pdev->wfd_w = ALIGN(gsc.dst_cfg.w, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
+            pdev->wfd_h = ALIGN(gsc.dst_cfg.h, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
+
+            buffer_handle_t dst_buf = gsc.dst_buf[gsc.current_buf];
+            wfd_output(dst_buf, pdev, &gsc, *overlay_layer);
+        }
     }
 
     return 0;
@@ -3893,10 +3941,10 @@ static int exynos5_blank(struct hwc_composer_device_1 *dev, int disp, int blank)
     case HWC_DISPLAY_EXTERNAL:
 #ifdef USES_WFD
         if (pdev->wfd_hpd) {
-            if (blank && !pdev->wfd_blanked)
-                wfd_disable(pdev);
             pdev->wfd_blanked = !!blank;
-            break;
+            if (!blank)
+                pdev->wfd_enabled = true;
+             break;
         }
 #endif
         if (pdev->hdmi_hpd) {

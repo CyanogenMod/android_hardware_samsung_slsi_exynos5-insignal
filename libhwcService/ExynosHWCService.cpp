@@ -287,7 +287,7 @@ void ExynosHWCService::getWFDOutputResolution(unsigned int *width, unsigned int 
 void ExynosHWCService::getWFDOutputInfo(int *fd1, int *fd2, struct wfd_layer_t *wfd_info)
 {
 #ifdef USES_WFD
-    if (mHWCCtx->wfd_enabled) {
+    if (mHWCCtx->wfd_enabled || mHWCCtx->wfd_blanked) {
         *fd1 = mHWCCtx->wfd_locked_fd = mHWCCtx->wfd_buf_fd[0];
         *fd2 = mHWCCtx->wfd_buf_fd[1];
         memcpy(wfd_info, &mHWCCtx->wfd_info, sizeof(struct wfd_layer_t));

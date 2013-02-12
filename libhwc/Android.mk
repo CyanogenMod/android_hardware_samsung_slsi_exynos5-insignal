@@ -29,6 +29,8 @@ ifeq ($(BOARD_USES_HWC_SERVICES),true)
 
 ifeq ($(BOARD_USES_WFD),true)
 	LOCAL_CFLAGS += -DUSES_WFD
+	LOCAL_SHARED_LIBRARIES += libfimg
+	LOCAL_C_INCLUDES += $(TOP)/hardware/samsung_slsi/exynos/libfimg4x
 endif
 
 ifeq ($(BOARD_USE_S3D_SUPPORT),true)

@@ -548,7 +548,7 @@ static bool exynos5_blending_is_supported(int32_t blending)
     return exynos5_blending_to_s3c_blending(blending) < S3C_FB_BLENDING_MAX;
 }
 
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
+#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USES_WFD)
 static inline rotation rotateValueHAL2G2D(unsigned char transform)
 {
     int rotate_flag = transform & 0x7;
@@ -809,7 +809,9 @@ int runCompositor(exynos5_hwc_composer_device_1_t *pdev,
 
     return 0;
 }
+#endif
 
+#ifdef USE_GRALLOC_FLAG_FOR_HDMI
 static unsigned long get_mapped_addr_fb_target(exynos5_hwc_composer_device_1_t *pdev, int fd)
 {
     for (int i = 0; i < NUM_FB_TARGET; i++) {

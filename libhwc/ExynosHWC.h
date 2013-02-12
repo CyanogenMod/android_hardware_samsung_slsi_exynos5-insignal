@@ -193,8 +193,11 @@ struct hdmi_layer_t {
     size_t  queued_buf;
 };
 
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
+#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USES_WFD)
 #include "FimgApi.h"
+#endif
+
+#ifdef USE_GRALLOC_FLAG_FOR_HDMI
 #define HWC_SKIP_HDMI_RENDERING 0x80000000
 
 const size_t NUM_COMPOSITE_BUFFER_FOR_EXTERNAL = 4;

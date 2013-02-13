@@ -1651,6 +1651,24 @@ static int exynos5_prepare_fimd(exynos5_hwc_composer_device_1_t *pdev,
 #endif
 retry:
 
+#if defined(FORCE_YUV_OVERLAY)
+    bool popup_play_drm_contents = false;
+    int popup_drm_lay_idx = 0;
+    bool contents_has_drm_surface = false;
+    for (size_t i = 0; i < contents->numHwLayers; i++) {
+        hwc_layer_1_t &layer = contents->hwLayers[i];
+        if (layer.handle) {
+            private_handle_t *handle = private_handle_t::dynamicCast(layer.handle);
+            if (exynos5_get_drmMode(handle->flags) != NO_DRM) {
+                contents_has_drm_surface = true;
+                popup_drm_lay_idx = i;
+                break;
+            }
+        }
+    }
+    popup_play_drm_contents = !!(contents_has_drm_surface && popup_drm_lay_idx);
+#endif
+
     for (size_t i = 0; i < NUM_HW_WINDOWS; i++)
         pdev->bufs.overlay_map[i] = -1;
 
@@ -1682,6 +1700,11 @@ retry:
                     !(handle->flags & GRALLOC_USAGE_EXTERNAL_VIRTUALFB)) {
 #endif
 
+#if defined(FORCE_YUV_OVERLAY)
+            if (!popup_play_drm_contents ||
+                (popup_play_drm_contents && (popup_drm_lay_idx == i)))
+#endif
+
 #ifndef HWC_DYNAMIC_RECOMPOSITION
                 if (exynos5_supports_overlay(contents->hwLayers[i], i, pdev) &&
                         !force_fb) {
@@ -1692,6 +1715,10 @@ retry:
 #endif
                     ALOGV("\tlayer %u: overlay supported", i);
                     layer.compositionType = HWC_OVERLAY;
+#if defined(FORCE_YUV_OVERLAY)
+                    if (popup_play_drm_contents)
+                        layer.hints = HWC_HINT_CLEAR_FB;
+#endif
                     dump_layer(&contents->hwLayers[i]);
                     continue;
                 }
@@ -1711,9 +1738,17 @@ retry:
     }
 
     // can't composite overlays sandwiched between framebuffers
-    if (fb_needed)
-        for (size_t i = first_fb; i < last_fb; i++)
+    if (fb_needed) {
+        for (size_t i = first_fb; i < last_fb; i++) {
+#if defined(FORCE_YUV_OVERLAY)
+            if (popup_play_drm_contents && (popup_drm_lay_idx == i)) {
+                first_fb = 1;
+                break;
+            }
+#endif
             contents->hwLayers[i].compositionType = HWC_FRAMEBUFFER;
+        }
+    }
 
     // Incrementally try to add our supported layers to hardware windows.
     // If adding a layer would violate a hardware constraint, force it

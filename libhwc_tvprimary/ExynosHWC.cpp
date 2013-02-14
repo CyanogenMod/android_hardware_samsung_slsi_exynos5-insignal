@@ -19,6 +19,80 @@
 #include "libcec.h"
 #endif
 
+static int set_default_resolution(int preset, struct fb_var_screeninfo *info)
+{
+    switch (preset) {
+    case V4L2_DV_480P59_94:
+    case V4L2_DV_576P50:
+        info->reserved[0] = 720;
+        info->reserved[1] = 480;
+        return 0;
+    case V4L2_DV_720P24:
+    case V4L2_DV_720P25:
+    case V4L2_DV_720P30:
+    case V4L2_DV_720P50:
+    case V4L2_DV_720P59_94:
+    case V4L2_DV_720P60:
+        info->reserved[0] = 1280;
+        info->reserved[1] = 720;
+        return 0;
+    case V4L2_DV_1080I29_97:
+    case V4L2_DV_1080I30:
+    case V4L2_DV_1080I50:
+    case V4L2_DV_1080I60:
+    case V4L2_DV_1080P24:
+    case V4L2_DV_1080P25:
+    case V4L2_DV_1080P30:
+    case V4L2_DV_1080P50:
+    case V4L2_DV_1080P60:
+        info->reserved[0] = 1920;
+        info->reserved[1] = 1080;
+        return 0;
+    default:
+        info->reserved[0] = 1280;
+        info->reserved[1] = 720;
+        ALOGV("invalid resolution, but set default resolution");
+        return 0;
+    }
+}
+
+static int surfaceflinger_reset(exynos5_hwc_composer_device_1_t *pdev, int preset)
+{
+    int ret;
+    struct fb_var_screeninfo info;
+
+    /* FIMD Power on */
+    if (ioctl(pdev->fd, FBIOBLANK, FB_BLANK_UNBLANK) < 0) {
+        if (errno == EBUSY) {
+            ALOGI("blank ioctl failed (display already FB_BLANK_UNBLANK)");
+        } else {
+            ALOGE("blank ioctl failed: %s", strerror(errno));
+            ret = -errno;
+            goto err_ioctl;
+        }
+    }
+
+    if (ioctl(pdev->fd, FBIOGET_VSCREENINFO, &info) == -1) {
+        ALOGE("FBIOGET_VSCREENINFO ioctl failed: %s", strerror(errno));
+        ret = -errno;
+        goto err_ioctl;
+    }
+
+    set_default_resolution(preset, &info);
+
+    if (ioctl(pdev->fd, FBIOPUT_VSCREENINFO, &info) == -1) {
+        ALOGE("FBIOPUT_VSCREENINFO ioctl failed: %s", strerror(errno));
+        ret = -errno;
+        goto err_ioctl;
+    }
+
+    kill(getpid(), SIGKILL);
+
+err_ioctl:
+    close(pdev->fd);
+    return 0;
+}
+
 static void exynos5_cleanup_gsc_m2m(exynos5_hwc_composer_device_1_t *pdev,
         size_t gsc_idx);
 
@@ -525,6 +599,9 @@ int hdmi_get_config(struct exynos5_hwc_composer_device_1_t *dev)
         ALOGE("%s: g_dv_preset error, %d", __func__, errno);
         return -1;
     }
+
+    if (dev->mHdmiCurrentPreset != preset.preset)
+       surfaceflinger_reset(dev,preset.preset);
 
     return hdmi_is_preset_supported(dev, preset.preset) ? 0 : -1;
 }
@@ -1193,12 +1270,14 @@ void hdmi_set_preset(exynos5_hwc_composer_device_1_t *pdev, int preset)
     pdev->mHdmiResolutionHandled = false;
     pdev->hdmi_hpd = false;
     v4l2_dv_preset v_preset;
+    v4l2_dv_preset g_preset;
     v_preset.preset = preset;
     hdmi_disable(pdev);
-    if (ioctl(pdev->hdmi_layers[0].fd, VIDIOC_S_DV_PRESET, &v_preset) != -1) {
-        if (pdev->procs)
-            pdev->procs->hotplug(pdev->procs, HWC_DISPLAY_EXTERNAL, false);
-    }
+    if (ioctl(pdev->hdmi_layers[0].fd, VIDIOC_S_DV_PRESET, &v_preset) != -1)
+        ALOGE("%s: s_dv_preset error, %d", __func__, errno);
+
+    if (ioctl(pdev->hdmi_layers[0].fd, VIDIOC_G_DV_PRESET, &g_preset) < 0)
+        ALOGE("%s: g_dv_preset error, %d", __func__, errno);
 }
 
 int hdmi_3d_to_2d(int preset)
@@ -3546,7 +3625,7 @@ static int exynos5_set(struct hwc_composer_device_1 *dev,
     if (hdmi_contents && pdev->hdmi_enabled) {
         hdmi_err = exynos5_set_hdmi(pdev, hdmi_contents);
     }
-#if 0
+
 #if defined(HWC_SERVICES)
 #if defined(S3D_SUPPORT)
     if (pdev->mS3DMode != S3D_MODE_STOPPING && !pdev->mHdmiResolutionHandled) {
@@ -3557,8 +3636,7 @@ static int exynos5_set(struct hwc_composer_device_1 *dev,
         pdev->hdmi_hpd = true;
         hdmi_enable(pdev);
         if (pdev->procs) {
-            pdev->procs->hotplug(pdev->procs, HWC_DISPLAY_EXTERNAL, true);
-            pdev->procs->invalidate(pdev->procs);
+           pdev->procs->invalidate(pdev->procs);
         }
     }
     if (pdev->hdmi_hpd && pdev->mHdmiResolutionChanged) {
@@ -3567,12 +3645,12 @@ static int exynos5_set(struct hwc_composer_device_1 *dev,
 #else
         if (hdmi_is_preset_supported(pdev, pdev->mHdmiPreset))
 #endif
-            hdmi_set_preset(pdev, pdev->mHdmiPreset);
+        hdmi_set_preset(pdev, pdev->mHdmiPreset);
+        surfaceflinger_reset(pdev, pdev->mHdmiPreset);
     }
 #if defined(S3D_SUPPORT)
     if (pdev->mS3DMode == S3D_MODE_STOPPING)
         pdev->mS3DMode = S3D_MODE_DISABLED;
-#endif
 #endif
 #endif
 
@@ -4297,19 +4375,7 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
         ret = dev->vsync_fd;
         goto err_hdmi1;
     }
-#if !defined(HDMI_INCAPABLE)
-    sw_fd = open("/sys/class/switch/hdmi/state", O_RDONLY);
-    if (sw_fd) {
-        char val;
-        if (read(sw_fd, &val, 1) == 1 && val == '1') {
-            dev->hdmi_hpd = true;
-            if (hdmi_get_config(dev)) {
-                ALOGE("Error reading HDMI configuration");
-                dev->hdmi_hpd = false;
-            }
-        }
-    }
-#endif
+
     dev->base.common.tag = HARDWARE_DEVICE_TAG;
     dev->base.common.version = HWC_DEVICE_API_VERSION_1_1;
     dev->base.common.module = const_cast<hw_module_t *>(module);
@@ -4335,9 +4401,36 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
 #if defined(S3D_SUPPORT)
     dev->mS3DMode = S3D_MODE_DISABLED;
 #endif
-    dev->mHdmiPreset = HDMI_PRESET_DEFAULT;
-    dev->mHdmiCurrentPreset = HDMI_PRESET_DEFAULT;
+    struct v4l2_dv_preset preset;
+    if (ioctl(dev->hdmi_layers[0].fd, VIDIOC_G_DV_PRESET, &preset) < 0) {
+        ALOGV("%s: g_dv_preset error, %d", __func__, errno);
+        dev->mHdmiPreset = HDMI_PRESET_DEFAULT;
+        dev->mHdmiCurrentPreset = HDMI_PRESET_DEFAULT;
+    } else {
+        dev->mHdmiPreset = preset.preset;
+        dev->mHdmiCurrentPreset = preset.preset;
+        dev->xres = dev->hdmi_w;
+        dev->yres = dev->hdmi_h;
+        dev->xdpi = 1000 * (lcd_xres * 25.4f) / info.width;
+        dev->ydpi = 1000 * (lcd_yres * 25.4f) / info.height;
+        dev->vsync_period  = 1000000000 / refreshRate;
+    }
     dev->mUseSubtitles = false;
+
+ #endif
+
+#if !defined(HDMI_INCAPABLE)
+    sw_fd = open("/sys/class/switch/hdmi/state", O_RDONLY);
+    if (sw_fd) {
+        char val;
+        if (read(sw_fd, &val, 1) == 1 && val == '1') {
+            dev->hdmi_hpd = true;
+            if (hdmi_get_config(dev)) {
+                ALOGE("Error reading HDMI configuration");
+                dev->hdmi_hpd = false;
+            }
+        }
+    }
 #endif
 
 #if defined(USES_CEC)

@@ -57,6 +57,7 @@
 #include "videodev2.h"
 #ifdef USE_FB_PHY_LINEAR
 const size_t NUM_HW_WIN_FB_PHY = 2;
+#undef DUAL_VIDEO_OVERLAY_SUPORT
 #endif
 const size_t GSC_DST_W_ALIGNMENT_RGB888 = 32;
 const size_t GSC_DST_CROP_W_ALIGNMENT_RGB888 = 32;
@@ -71,6 +72,19 @@ const size_t MAX_PIXELS = 2560 * 1600 * 2;
 const size_t GSC_W_ALIGNMENT = 16;
 const size_t GSC_H_ALIGNMENT = 16;
 const size_t GSC_DST_H_ALIGNMENT_RGB888 = 1;
+#ifdef DUAL_VIDEO_OVERLAY_SUPORT
+const size_t FIMD_GSC_IDX = 0;
+const size_t FIMD_GSC_SEC_IDX = 1;
+const size_t FIMD_GSC_SBS_IDX = 2;
+const size_t FIMD_GSC_TB_IDX = 3;
+const size_t FIMD_GSC_FINAL_INDEX = 3;
+const size_t HDMI_GSC_IDX = 4;
+const size_t HDMI_GSC_SBS_IDX = 5;
+const size_t HDMI_GSC_TB_IDX = 6;
+const int FIMD_GSC_USAGE_IDX[] = {FIMD_GSC_IDX, FIMD_GSC_SEC_IDX,
+                                                    FIMD_GSC_SBS_IDX, FIMD_GSC_TB_IDX};
+const int AVAILABLE_GSC_UNITS[] = { 0, 3, 0, 0, 3, 3, 3 };
+#else
 const size_t FIMD_GSC_IDX = 0;
 const size_t WFD_GSC_IDX = 0;
 const size_t HDMI_GSC_IDX = 1;
@@ -79,6 +93,7 @@ const size_t FIMD_GSC_TB_IDX = 3;
 const size_t HDMI_GSC_SBS_IDX = 4;
 const size_t HDMI_GSC_TB_IDX = 5;
 const int AVAILABLE_GSC_UNITS[] = { 0, 3, 0, 0, 3, 3 };
+#endif
 const size_t NUM_GSC_UNITS = sizeof(AVAILABLE_GSC_UNITS) /
         sizeof(AVAILABLE_GSC_UNITS[0]);
 const size_t BURSTLEN_BYTES = 16 * 8;
@@ -185,7 +200,11 @@ struct hdmi_layer_t {
     size_t  queued_buf;
 };
 
+#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USES_WFD)
 #include "FimgApi.h"
+#endif
+
+#ifdef USE_GRALLOC_FLAG_FOR_HDMI
 #define HWC_SKIP_HDMI_RENDERING 0x80000000
 
 const size_t NUM_COMPOSITE_BUFFER_FOR_EXTERNAL = 4;
@@ -218,6 +237,7 @@ struct FB_TARGET_Info {
     int             map_size;
 };
 #define NUM_FB_TARGET 4
+#endif
 
 struct exynos5_hwc_composer_device_1_t {
     hwc_composer_device_1_t base;
@@ -257,6 +277,9 @@ struct exynos5_hwc_composer_device_1_t {
     struct wfd_layer_t      wfd_info;
     int  wfd_locked_fd;
     bool mPresentationMode;
+    int wfd_skipping;
+    int wfd_sleepctrl;
+
 #endif
 
     hdmi_layer_t            hdmi_layers[2];
@@ -336,7 +359,6 @@ struct exynos5_hwc_composer_device_1_t {
     int                     num_of_ext_disp_video_layer;
     int                     num_of_ext_only_layer;
     int                     num_of_ext_flexible_layer;
-#endif
 
     buffer_handle_t         composite_buffer_for_external[NUM_COMPOSITE_BUFFER_FOR_EXTERNAL];
     unsigned long           va_composite_buffer_for_external[NUM_COMPOSITE_BUFFER_FOR_EXTERNAL]; /* mapped address */
@@ -353,6 +375,8 @@ struct exynos5_hwc_composer_device_1_t {
     int                     surface_fd_for_vfb[NUM_BUFFER_U4A];  /* for ubuntu */
     int                     num_of_ext_vfb_layer;
     struct FB_TARGET_Info   fb_target_info[NUM_FB_TARGET];
+    private_handle_t        *prev_handle_vfb;
+#endif
 };
 
 #if defined(HWC_SERVICES)

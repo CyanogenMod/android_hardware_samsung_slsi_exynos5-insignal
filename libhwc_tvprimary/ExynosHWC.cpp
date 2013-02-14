@@ -4009,46 +4009,18 @@ static void exynos5_dump(hwc_composer_device_1* dev, char *buff, int buff_len)
 
     android::String8 result;
 
+    result.append("----------------------------------------------------------\n");
     result.appendFormat("  hdmi_enabled=%u\n", pdev->hdmi_enabled);
     if (pdev->hdmi_enabled)
         result.appendFormat("    w=%u, h=%u\n", pdev->hdmi_w, pdev->hdmi_h);
-    result.append(
-            "   type   |  handle  |  color   | blend | format |   position    |     size      | gsc \n"
-            "----------+----------|----------+-------+--------+---------------+---------------------\n");
-    //        8_______ | 8_______ | 8_______ | 5____ | 6_____ | [5____,5____] | [5____,5____] | 3__ \n"
-
-    for (size_t i = 0; i < NUM_HW_WINDOWS; i++) {
-        struct s3c_fb_win_config &config = pdev->last_config[i];
-        if (config.state == config.S3C_FB_WIN_STATE_DISABLED) {
-            result.appendFormat(" %8s | %8s | %8s | %5s | %6s | %13s | %13s",
-                    "OVERLAY", "-", "-", "-", "-", "-", "-");
-        }
-        else {
-            if (config.state == config.S3C_FB_WIN_STATE_COLOR)
-                result.appendFormat(" %8s | %8s | %8x | %5s | %6s", "COLOR",
-                        "-", config.color, "-", "-");
-            else
-                result.appendFormat(" %8s | %8x | %8s | %5x | %6x",
-                        pdev->last_fb_window == i ? "FB" : "OVERLAY",
-                        intptr_t(pdev->last_handles[i]),
-                        "-", config.blending, config.format);
-
-            result.appendFormat(" | [%5d,%5d] | [%5u,%5u]", config.x, config.y,
-                    config.w, config.h);
-        }
-        if (pdev->last_gsc_map[i].mode == exynos5_gsc_map_t::GSC_NONE) {
-            result.appendFormat(" | %3s", "-");
-        } else {
-            result.appendFormat(" | %3d",
-                    AVAILABLE_GSC_UNITS[pdev->last_gsc_map[i].idx]);
-            if (pdev->last_gsc_map[i].mode == exynos5_gsc_map_t::GSC_M2M)
-                result.appendFormat(" | %10s","GSC_M2M");
-            else
-                result.appendFormat(" | %10s","GSC_LOCAL");
-        }
+    for (size_t i = 0; i < NUM_HW_MIXER_LAYER; i++) {
+        result.appendFormat(" %8s | [%d]", "LAYER", i);
+        if (pdev->hdmi_layers[i].enabled)
+            result.appendFormat(" | %10s","ENABLED");
+        else
+            result.appendFormat(" | %10s","DISABLED");
         result.append("\n");
     }
-
     strlcpy(buff, result.string(), buff_len);
 }
 

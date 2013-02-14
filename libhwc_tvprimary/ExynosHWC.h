@@ -59,6 +59,7 @@
 const size_t NUM_HW_WIN_FB_PHY = 2;
 #undef DUAL_VIDEO_OVERLAY_SUPORT
 #endif
+const size_t NUM_HW_MIXER_LAYER = 3;
 const size_t GSC_DST_W_ALIGNMENT_RGB888 = 32;
 const size_t GSC_DST_CROP_W_ALIGNMENT_RGB888 = 32;
 #define VSYNC_DEV_NAME  "/sys/devices/platform/s5p-mixer/mxr_vsync"

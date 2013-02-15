@@ -303,18 +303,25 @@ void ExynosHWCService::getWFDOutputResolution(unsigned int *width, unsigned int 
 #endif
 }
 
-void ExynosHWCService::getWFDOutputInfo(int *fd1, int *fd2, struct wfd_layer_t *wfd_info)
+int ExynosHWCService::getWFDOutputInfo(int *fd1, int *fd2, struct wfd_layer_t *wfd_info)
 {
 #ifdef USES_WFD
-    if (mHWCCtx->wfd_enabled || mHWCCtx->wfd_blanked) {
+    if (mHWCCtx->wfd_buf_fd[0] && mHWCCtx->wfd_buf_fd[1]) {
         *fd1 = mHWCCtx->wfd_locked_fd = mHWCCtx->wfd_buf_fd[0];
         *fd2 = mHWCCtx->wfd_buf_fd[1];
         memcpy(wfd_info, &mHWCCtx->wfd_info, sizeof(struct wfd_layer_t));
+        return NO_ERROR;
     } else {
-        *fd1 = -1;
-        *fd2 = -1;
+        *fd1 = *fd2 = 0;
+        ALOGE("WFD Status FD=%d, w=%d, h=%d, disp_w=%d, disp_h=%d, \
+                   hpd=%d, enabled=%d, blanked=%d",
+                   *fd1, mHWCCtx->wfd_w, mHWCCtx->wfd_h,
+                   mHWCCtx->wfd_disp_w, mHWCCtx->wfd_disp_h,
+                   mHWCCtx->wfd_hpd, mHWCCtx->wfd_enabled, mHWCCtx->wfd_blanked);
+        return BAD_VALUE;
     }
 #endif
+    return INVALID_OPERATION;
 }
 
 int ExynosHWCService::getPresentationMode()

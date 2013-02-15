@@ -480,6 +480,8 @@ static int wfd_enable(struct exynos5_hwc_composer_device_1_t *dev)
     if (dev->procs)
         dev->procs->hotplug(dev->procs, HWC_DISPLAY_EXTERNAL, dev->wfd_hpd);
 
+    dev->wfd_locked_fd = -1;
+    dev->wfd_buf_fd[0] = dev->wfd_buf_fd[1] = 0;
     dev->wfd_enabled = true;
     ALOGE("Wifi-Display is ON !!!");
     return 0;
@@ -493,7 +495,6 @@ static void wfd_disable(struct exynos5_hwc_composer_device_1_t *dev)
     if (dev->procs)
         dev->procs->hotplug(dev->procs, HWC_DISPLAY_EXTERNAL, dev->wfd_hpd);
 
-    dev->wfd_locked_fd = -1;
     exynos5_cleanup_gsc_m2m(dev, HDMI_GSC_IDX);
 
     dev->wfd_enabled = false;
@@ -2675,7 +2676,13 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
 
     bool reconfigure = gsc_src_cfg_changed(src_cfg, gsc_data->src_cfg) ||
             gsc_dst_cfg_changed(dst_cfg, gsc_data->dst_cfg);
-    if (reconfigure) {
+    bool realloc = true;
+#if USES_WFD
+    if (dst_format == EXYNOS5_WFD_FORMAT && !gsc_dst_cfg_changed(dst_cfg, gsc_data->dst_cfg))
+        realloc = false;
+#endif
+
+    if (reconfigure && realloc) {
         int dst_stride;
         int usage = GRALLOC_USAGE_SW_READ_NEVER |
                 GRALLOC_USAGE_SW_WRITE_NEVER |

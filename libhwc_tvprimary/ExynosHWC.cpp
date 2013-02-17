@@ -128,6 +128,15 @@ static inline bool gsc_src_cfg_changed(exynos_gsc_img &c1, exynos_gsc_img &c2)
             c1.fh != c2.fh;
 }
 
+static inline bool mxr_src_cfg_changed(exynos_gsc_img &c1, exynos_gsc_img &c2)
+{
+    return c1.format != c2.format ||
+            c1.rot != c2.rot ||
+            c1.cacheable != c2.cacheable ||
+            c1.drmMode != c2.drmMode ||
+            c1.fw != c2.fw ||
+            c1.fh != c2.fh;
+}
 static enum s3c_fb_pixel_format exynos5_format_to_s3c_format(int format)
 {
     switch (format) {
@@ -452,8 +461,10 @@ static void wfd_output(buffer_handle_t buf, exynos5_hwc_composer_device_1_t *pde
         gettimeofday(&pdev->wfd_info.tv_stamp, NULL);
     }
 
-    if (gsc->dst_cfg.releaseFenceFd > 0)
+    if (gsc->dst_cfg.releaseFenceFd > 0) {
         close(gsc->dst_cfg.releaseFenceFd);
+        gsc->dst_cfg.releaseFenceFd = -1;
+    }
     gsc->current_buf = (gsc->current_buf + 1) % NUM_GSC_DST_BUFS;
     private_handle_t *next_h = private_handle_t::dynamicCast(gsc->dst_buf[gsc->current_buf]);
     if (next_h->fd == pdev->wfd_locked_fd)
@@ -471,6 +482,8 @@ static int wfd_enable(struct exynos5_hwc_composer_device_1_t *dev)
     if (dev->procs)
         dev->procs->hotplug(dev->procs, HWC_DISPLAY_EXTERNAL, dev->wfd_hpd);
 
+    dev->wfd_locked_fd = -1;
+    dev->wfd_buf_fd[0] = dev->wfd_buf_fd[1] = 0;
     dev->wfd_enabled = true;
     ALOGE("Wifi-Display is ON !!!");
     return 0;
@@ -484,7 +497,6 @@ static void wfd_disable(struct exynos5_hwc_composer_device_1_t *dev)
     if (dev->procs)
         dev->procs->hotplug(dev->procs, HWC_DISPLAY_EXTERNAL, dev->wfd_hpd);
 
-    dev->wfd_locked_fd = -1;
     exynos5_cleanup_gsc_m2m(dev, HDMI_GSC_IDX);
 
     dev->wfd_enabled = false;
@@ -667,7 +679,7 @@ int runCompositor(exynos5_hwc_composer_device_1_t *pdev,
     if (!force_clear) {
         srcImgRect = {src_layer.sourceCrop.left, src_layer.sourceCrop.top,
                 WIDTH(src_layer.sourceCrop), HEIGHT(src_layer.sourceCrop),
-                WIDTH(src_layer.sourceCrop), HEIGHT(src_layer.sourceCrop),
+                src_handle->stride, src_handle->vstride,
                 src_handle->format};
     }
 
@@ -1074,23 +1086,7 @@ static int hdmi_output(struct exynos5_hwc_composer_device_1_t *dev,
     cfg.w = WIDTH(layer.displayFrame);
     cfg.h = HEIGHT(layer.displayFrame);
 
-    if (gsc_src_cfg_changed(hl.cfg, cfg)) {
-        hdmi_disable_layer(dev, hl);
-
-        struct v4l2_format fmt;
-        memset(&fmt, 0, sizeof(fmt));
-        fmt.type  = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
-        fmt.fmt.pix_mp.width       = h->stride;
-        fmt.fmt.pix_mp.height      = cfg.h;
-        fmt.fmt.pix_mp.pixelformat = V4L2_PIX_FMT_BGR32;
-        fmt.fmt.pix_mp.field       = V4L2_FIELD_ANY;
-        fmt.fmt.pix_mp.num_planes  = 1;
-        ret = exynos_v4l2_s_fmt(hl.fd, &fmt);
-        if (ret < 0) {
-            ALOGE("%s: layer%d: s_fmt failed %d", __func__, hl.id, errno);
-            goto err;
-        }
-
+    if (gsc_src_cfg_changed(hl.cfg, cfg) || dev->fb_started || dev->video_started) {
         struct v4l2_subdev_crop sd_crop;
         memset(&sd_crop, 0, sizeof(sd_crop));
         if (hl.id == 0)
@@ -1098,16 +1094,46 @@ static int hdmi_output(struct exynos5_hwc_composer_device_1_t *dev,
         else
             sd_crop.pad   = MIXER_G1_SUBDEV_PAD_SOURCE;
 
-        struct v4l2_subdev_format sd_fmt;
-        memset(&sd_fmt, 0, sizeof(sd_fmt));
-        sd_fmt.pad   = sd_crop.pad;
-        sd_fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
-        sd_fmt.format.width  = h->stride;
-        sd_fmt.format.height = cfg.h;
-        sd_fmt.format.code   = V4L2_MBUS_FMT_XRGB8888_4X8_LE;
-        if (exynos_subdev_s_fmt(dev->hdmi_mixer0, &sd_fmt) < 0) {
-            ALOGE("%s: s_fmt failed pad=%d", __func__, sd_fmt.pad);
-            return -1;
+        if ((mxr_src_cfg_changed(hl.cfg, cfg) && (hl.id == 0)) || (hl.id == 1) || dev->video_started) {
+            hdmi_disable_layer(dev, hl);
+
+            struct v4l2_format fmt;
+            memset(&fmt, 0, sizeof(fmt));
+            fmt.type  = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
+            if (hl.id == 0) {
+                fmt.fmt.pix_mp.width   = dev->hdmi_w;
+                fmt.fmt.pix_mp.height  = dev->hdmi_h;
+            } else {
+                fmt.fmt.pix_mp.width   = h->stride;
+                fmt.fmt.pix_mp.height  = cfg.h;
+            }
+            fmt.fmt.pix_mp.pixelformat = V4L2_PIX_FMT_BGR32;
+            fmt.fmt.pix_mp.field       = V4L2_FIELD_ANY;
+            fmt.fmt.pix_mp.num_planes  = 1;
+            ret = exynos_v4l2_s_fmt(hl.fd, &fmt);
+            if (ret < 0) {
+                ALOGE("%s: layer%d: s_fmt failed %d", __func__, hl.id, errno);
+                goto err;
+            }
+
+            struct v4l2_subdev_format sd_fmt;
+            memset(&sd_fmt, 0, sizeof(sd_fmt));
+            sd_fmt.pad   = sd_crop.pad;
+            sd_fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+            if (hl.id == 0) {
+                sd_fmt.format.width    = dev->hdmi_w;
+                sd_fmt.format.height   = dev->hdmi_h;
+            } else {
+                sd_fmt.format.width    = h->stride;
+                sd_fmt.format.height   = cfg.h;
+            }
+            sd_fmt.format.code   = V4L2_MBUS_FMT_XRGB8888_4X8_LE;
+            if (exynos_subdev_s_fmt(dev->hdmi_mixer0, &sd_fmt) < 0) {
+                ALOGE("%s: s_fmt failed pad=%d", __func__, sd_fmt.pad);
+                return -1;
+            }
+
+            hdmi_enable_layer(dev, hl);
         }
 
         sd_crop.which = V4L2_SUBDEV_FORMAT_ACTIVE;
@@ -1119,8 +1145,6 @@ static int hdmi_output(struct exynos5_hwc_composer_device_1_t *dev,
             ALOGE("%s: s_crop failed pad=%d", __func__, sd_crop.pad);
             goto err;
         }
-
-        hdmi_enable_layer(dev, hl);
 
         ALOGV("HDMI layer%d configuration:", hl.id);
         dump_gsc_img(cfg);
@@ -1184,6 +1208,56 @@ err:
 
     return ret;
 }
+
+#if defined(GSC_VIDEO)
+static void hdmi_skip_static_layers(exynos5_hwc_composer_device_1_t *pdev,
+        hwc_display_contents_1_t *contents, int ovly_idx)
+{
+    static int init_flag = 0;
+    pdev->virtual_ovly_flag_hdmi = 0;
+
+    if (contents->flags & HWC_GEOMETRY_CHANGED) {
+        init_flag = 0;
+        return;
+    }
+
+    if ((ovly_idx == -1) || (ovly_idx >= (contents->numHwLayers - 2)) ||
+        ((contents->numHwLayers - ovly_idx - 1) >= NUM_VIRT_OVER_HDMI)) {
+        init_flag = 0;
+        return;
+    }
+
+    ovly_idx++;
+    if (init_flag == 1) {
+        for (size_t i = ovly_idx; i < contents->numHwLayers - 1; i++) {
+            hwc_layer_1_t &layer = contents->hwLayers[i];
+            if (!layer.handle || (pdev->last_lay_hnd_hdmi[i - ovly_idx] !=  layer.handle)) {
+                init_flag = 0;
+                return;
+            }
+        }
+
+        pdev->virtual_ovly_flag_hdmi = 1;
+        for (size_t i = ovly_idx; i < contents->numHwLayers - 1; i++) {
+            hwc_layer_1_t &layer = contents->hwLayers[i];
+            if (layer.compositionType == HWC_FRAMEBUFFER)
+                layer.compositionType = HWC_OVERLAY;
+        }
+        return;
+    }
+
+    init_flag = 1;
+    for (size_t i = ovly_idx; i < contents->numHwLayers; i++) {
+        hwc_layer_1_t &layer = contents->hwLayers[i];
+        pdev->last_lay_hnd_hdmi[i - ovly_idx] = layer.handle;
+    }
+
+    for (size_t i = contents->numHwLayers - ovly_idx; i < NUM_VIRT_OVER; i++)
+        pdev->last_lay_hnd_hdmi[i - ovly_idx] = 0;
+
+    return;
+}
+#endif
 
 #if defined(HWC_SERVICES)
 void hdmi_set_preset(exynos5_hwc_composer_device_1_t *pdev, int preset)
@@ -1473,18 +1547,14 @@ inline hwc_rect intersection(const hwc_rect &r1, const hwc_rect &r2)
 }
 
 #ifdef FORCEFB_YUVLAYER
-static inline bool yuv_src_cfg_changed(video_layer_config &c1, video_layer_config &c2)
-{
-    return c1.fw != c2.fw ||
-            c1.fh != c2.fh;
-}
-
-static inline bool yuv_dst_cfg_changed(video_layer_config &c1, video_layer_config &c2)
+static inline bool yuv_cfg_changed(video_layer_config &c1, video_layer_config &c2)
 {
     return c1.x != c2.x ||
             c1.y != c2.y ||
             c1.w != c2.w ||
             c1.h != c2.h ||
+            c1.fw != c2.fw ||
+            c1.fh != c2.fh ||
             c1.format != c2.format ||
             c1.rot != c2.rot ||
             c1.cacheable != c2.cacheable ||
@@ -1522,8 +1592,8 @@ static bool exynos5_compare_yuvlayer_config(hwc_layer_1_t &layer,
 
     /* check to save previous yuv layer configration */
     if (pre_src_data && pre_dst_data)
-         reconfigure = yuv_src_cfg_changed(new_src_cfg, *pre_src_data) ||
-            yuv_dst_cfg_changed(new_dst_cfg, *pre_dst_data);
+         reconfigure = yuv_cfg_changed(new_src_cfg, *pre_src_data) ||
+            yuv_cfg_changed(new_dst_cfg, *pre_dst_data);
 
     memcpy(pre_src_data, &new_src_cfg, sizeof(new_src_cfg));
     memcpy(pre_dst_data, &new_dst_cfg, sizeof(new_dst_cfg));
@@ -1551,7 +1621,6 @@ static void exynos5_skip_static_layers(exynos5_hwc_composer_device_1_t *pdev,
         if (pdev->bufs.overlay_map[i] != -1) {
             last_ovly_lay_idx = pdev->bufs.overlay_map[i];
             pdev->last_ovly_win_idx = i;
-            break;
         }
     }
 
@@ -1587,7 +1656,7 @@ static void exynos5_skip_static_layers(exynos5_hwc_composer_device_1_t *pdev,
     }
 
     for (size_t i = contents->numHwLayers - last_ovly_lay_idx; i < NUM_VIRT_OVER; i++)
-        pdev->last_lay_hnd[i - last_ovly_lay_idx] = 0;
+        pdev->last_lay_hnd[i] = 0;
 
     return;
 }
@@ -1652,6 +1721,24 @@ static int exynos5_prepare_fimd(exynos5_hwc_composer_device_1_t *pdev,
 #endif
 retry:
 
+#if defined(FORCE_YUV_OVERLAY)
+    pdev->popup_play_drm_contents = false;
+    int popup_drm_lay_idx = 0;
+    bool contents_has_drm_surface = false;
+    for (size_t i = 0; i < contents->numHwLayers; i++) {
+        hwc_layer_1_t &layer = contents->hwLayers[i];
+        if (layer.handle) {
+            private_handle_t *handle = private_handle_t::dynamicCast(layer.handle);
+            if (exynos5_get_drmMode(handle->flags) != NO_DRM) {
+                contents_has_drm_surface = true;
+                popup_drm_lay_idx = i;
+                break;
+            }
+        }
+    }
+    pdev->popup_play_drm_contents = !!(contents_has_drm_surface && popup_drm_lay_idx);
+#endif
+
     for (size_t i = 0; i < NUM_HW_WINDOWS; i++)
         pdev->bufs.overlay_map[i] = -1;
 
@@ -1683,19 +1770,32 @@ retry:
                     !(handle->flags & GRALLOC_USAGE_EXTERNAL_VIRTUALFB)) {
 #endif
 
+#if defined(FORCE_YUV_OVERLAY)
+            if (!pdev->popup_play_drm_contents ||
+                (pdev->popup_play_drm_contents && (popup_drm_lay_idx == i))) {
+#endif
+
 #ifndef HWC_DYNAMIC_RECOMPOSITION
                 if (exynos5_supports_overlay(contents->hwLayers[i], i, pdev) &&
                         !force_fb) {
 #else
                 pdev->totPixels += WIDTH(layer.displayFrame) * HEIGHT(layer.displayFrame);
                 if (exynos5_supports_overlay(contents->hwLayers[i], i, pdev) &&
-                        !force_fb && (pdev->CompModeSwitch != HWC_2_GLES)) {
+                        !force_fb && ((pdev->CompModeSwitch != HWC_2_GLES) ||
+                        (exynos5_get_drmMode(handle->flags) != NO_DRM))) {
 #endif
                     ALOGV("\tlayer %u: overlay supported", i);
                     layer.compositionType = HWC_OVERLAY;
+#if defined(FORCE_YUV_OVERLAY)
+                    if (pdev->popup_play_drm_contents)
+                        layer.hints = HWC_HINT_CLEAR_FB;
+#endif
                     dump_layer(&contents->hwLayers[i]);
                     continue;
                 }
+#if defined(FORCE_YUV_OVERLAY)
+            }
+#endif
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
             }
 #endif
@@ -1712,9 +1812,17 @@ retry:
     }
 
     // can't composite overlays sandwiched between framebuffers
-    if (fb_needed)
-        for (size_t i = first_fb; i < last_fb; i++)
+    if (fb_needed) {
+        for (size_t i = first_fb; i < last_fb; i++) {
+#if defined(FORCE_YUV_OVERLAY)
+            if (pdev->popup_play_drm_contents && (popup_drm_lay_idx == i)) {
+                first_fb = 1;
+                break;
+            }
+#endif
             contents->hwLayers[i].compositionType = HWC_FRAMEBUFFER;
+        }
+    }
 
     // Incrementally try to add our supported layers to hardware windows.
     // If adding a layer would violate a hardware constraint, force it
@@ -1844,6 +1952,9 @@ retry:
     for (size_t i = 0; i < contents->numHwLayers; i++) {
         hwc_layer_1_t &layer = contents->hwLayers[i];
 
+#if defined(FORCE_YUV_OVERLAY)
+        if (!pdev->popup_play_drm_contents)
+#endif
         if (fb_needed && i == first_fb) {
             ALOGV("assigning framebuffer to window %u\n",
                     nextWindow);
@@ -1883,6 +1994,7 @@ retry:
                          * skipped on LCD.
                          */
                          ALOGV("DRM video layer-%d display is skipped on LCD", i);
+                         pdev->bufs.overlay_map[nextWindow] = -1;
                          continue;
                     }
 #endif
@@ -1919,7 +2031,12 @@ retry:
         }
     }
 #ifdef SKIP_STATIC_LAYER_COMP
-    exynos5_skip_static_layers(pdev, contents);
+#if defined(FORCE_YUV_OVERLAY)
+    if (pdev->popup_play_drm_contents)
+        pdev->virtual_ovly_flag = 0;
+    else
+#endif
+        exynos5_skip_static_layers(pdev, contents);
     if (pdev->virtual_ovly_flag)
         fb_needed = 0;
 #endif
@@ -2101,7 +2218,7 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
     hwc_layer_1_t *video_layer = NULL;
 #if defined(GSC_VIDEO)
     int numVideoLayers = 0;
-    int videoIndex;
+    int videoIndex = -1;
 #endif
 
     pdev->force_mirror_mode = false;
@@ -2216,7 +2333,7 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                             }
                         }
                         layer.compositionType = HWC_OVERLAY;
-                        layer.flags &= ~HWC_SKIP_HDMI_RENDERING;
+                        layer.flags = 0;
                     } else {
                         /* SKIP HDMI rendering others */
                         layer.compositionType = HWC_OVERLAY;
@@ -2237,7 +2354,7 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                             layer.displayFrame.right = dest_rect.width + dest_rect.left;
                             layer.displayFrame.bottom = dest_rect.height + dest_rect.top;
                             layer.compositionType = HWC_OVERLAY;
-                            layer.flags &= ~HWC_SKIP_HDMI_RENDERING;
+                            layer.flags = 0;
                         } else if(h->flags & GRALLOC_USAGE_EXTERNAL_FLEXIBLE) {
                             /* if EXTERNL_FLEXIBLE surface, it use saved displayFrame geometry in prepare_fimd()*/
                             layer.displayFrame.left = pdev->saved_layer_for_external[used_layer_count].x;
@@ -2248,7 +2365,7 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                                 + pdev->saved_layer_for_external[used_layer_count].y;
                             used_layer_count++;
                             layer.compositionType = HWC_OVERLAY;
-                            layer.flags &= ~HWC_SKIP_HDMI_RENDERING;
+                            layer.flags = 0;
                         }
                     } else {
                         /* SKIP HDMI rendering others */
@@ -2276,7 +2393,7 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                                 video_layer = &layer;
                                 layer.compositionType = HWC_OVERLAY;
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
-                                layer.flags &= ~HWC_SKIP_HDMI_RENDERING;
+                                layer.flags = 0;
 #endif
 #if defined(GSC_VIDEO)
                                 videoIndex = i;
@@ -2304,11 +2421,11 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                                 layer.displayFrame.right = dest_rect.width + dest_rect.left;
                                 layer.displayFrame.bottom = dest_rect.height + dest_rect.top;
                                 layer.compositionType = HWC_OVERLAY;
-                                layer.flags &= ~HWC_SKIP_HDMI_RENDERING;
+                                layer.flags = 0;
                             /* if EXTERNAL_FLEXIBLE surface, it use saved displayFrame geometry in prepare_fimd()*/
                             } else if(h->flags & GRALLOC_USAGE_EXTERNAL_FLEXIBLE) {
                                 layer.compositionType = HWC_OVERLAY;
-                                layer.flags &= ~HWC_SKIP_HDMI_RENDERING;
+                                layer.flags = 0;
                                 layer.displayFrame.left = pdev->saved_layer_for_external[used_layer_count].x;
                                 layer.displayFrame.top = pdev->saved_layer_for_external[used_layer_count].y;
                                 layer.displayFrame.right = pdev->saved_layer_for_external[used_layer_count].w
@@ -2356,10 +2473,8 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
                 if (i == videoIndex) {
                     layer.compositionType = HWC_OVERLAY;
-                    layer.flags &= ~HWC_SKIP_HDMI_RENDERING;
+                    layer.flags = 0;
                 }
-#else
-                layer.compositionType = HWC_OVERLAY;
 #endif
 #if defined(HWC_SERVICES)
             }
@@ -2368,23 +2483,7 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
             if (i == videoIndex) {
                 struct v4l2_rect dest_rect;
 #if defined(S3D_SUPPORT)
-                if (pdev->mS3DMode == S3D_MODE_DISABLED) {
-#endif
-                    bool rot90or270 = !!((pdev->hdmi_video_rotation) & HAL_TRANSFORM_ROT_90);
-                    if (rot90or270)
-                        hdmi_cal_dest_rect(HEIGHT(layer.sourceCrop), WIDTH(layer.sourceCrop),
-                                pdev->hdmi_w, pdev->hdmi_h, &dest_rect);
-                    else
-                        hdmi_cal_dest_rect(WIDTH(layer.sourceCrop), HEIGHT(layer.sourceCrop),
-                                pdev->hdmi_w, pdev->hdmi_h, &dest_rect);
-
-                    layer.displayFrame.left = dest_rect.left;
-                    layer.displayFrame.top = dest_rect.top;
-                    layer.displayFrame.right = dest_rect.width + dest_rect.left;
-                    layer.displayFrame.bottom = dest_rect.height + dest_rect.top;
-                    layer.transform = pdev->hdmi_video_rotation;
-#if defined(S3D_SUPPORT)
-                } else {
+                if (pdev->mS3DMode != S3D_MODE_DISABLED) {
                     layer.displayFrame.left = 0;
                     layer.displayFrame.top = 0;
                     layer.displayFrame.right = pdev->hdmi_w;
@@ -2393,6 +2492,9 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 #endif
             }
         }
+
+            hdmi_skip_static_layers(pdev, contents, videoIndex);
+
     } else if (numVideoLayers > 1) {
         for (int i = 0; i < contents->numHwLayers; i++) {
             hwc_layer_1_t &layer = contents->hwLayers[i];
@@ -2427,11 +2529,10 @@ static int exynos5_prepare_wfd(exynos5_hwc_composer_device_1_t *pdev,
             continue;
         }
 
-#if defined(GSC_VIDEO)
         if (layer.handle) {
             private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
 
-            if ((exynos5_get_drmMode(h->flags) == SECURE_DRM) || (h->flags & GRALLOC_USAGE_EXTERNAL_DISP) &&
+            if ((exynos5_get_drmMode(h->flags) != NO_DRM) && (h->flags & GRALLOC_USAGE_EXTERNAL_DISP) &&
 #ifdef SUPPORT_GSC_LOCAL_PATH
                 (exynos5_supports_gscaler(pdev, layer, h->format, false, 0))) {
 #else
@@ -2445,7 +2546,7 @@ static int exynos5_prepare_wfd(exynos5_hwc_composer_device_1_t *pdev,
                     struct v4l2_rect dest_rect;
 
                     hdmi_cal_dest_rect(WIDTH(layer.sourceCrop), HEIGHT(layer.sourceCrop),
-                            pdev->disp_w, pdev->disp_h, &dest_rect);
+                            pdev->wfd_disp_w, pdev->wfd_disp_h, &dest_rect);
                     layer.displayFrame.left = dest_rect.left;
                     layer.displayFrame.top = dest_rect.top;
                     layer.displayFrame.right = dest_rect.width + dest_rect.left;
@@ -2457,7 +2558,6 @@ static int exynos5_prepare_wfd(exynos5_hwc_composer_device_1_t *pdev,
                 }
             }
         }
-#endif
         layer.compositionType = HWC_FRAMEBUFFER;
         dump_layer(&layer);
     }
@@ -2596,7 +2696,13 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
 
     bool reconfigure = gsc_src_cfg_changed(src_cfg, gsc_data->src_cfg) ||
             gsc_dst_cfg_changed(dst_cfg, gsc_data->dst_cfg);
-    if (reconfigure) {
+    bool realloc = true;
+#if USES_WFD
+    if (dst_format == EXYNOS5_WFD_FORMAT && !gsc_dst_cfg_changed(dst_cfg, gsc_data->dst_cfg))
+        realloc = false;
+#endif
+
+    if (reconfigure && realloc) {
         int dst_stride;
         int usage = GRALLOC_USAGE_SW_READ_NEVER |
                 GRALLOC_USAGE_SW_WRITE_NEVER |
@@ -2620,7 +2726,10 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
             h = pdev->wfd_h;
         } else
 #endif
-        {
+        if (gsc_idx == HDMI_GSC_IDX) {
+            w = pdev->hdmi_w;
+            h = pdev->hdmi_h;
+        } else {
             w = ALIGN(dst_cfg.w, GSC_DST_W_ALIGNMENT_RGB888);
             h = ALIGN(dst_cfg.h, GSC_DST_H_ALIGNMENT_RGB888);
         }
@@ -2644,7 +2753,7 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
                     format, usage, &gsc_data->dst_buf[i],
                     &dst_stride);
 #ifdef USES_WFD
-             if (dst_format == EXYNOS5_WFD_FORMAT) {
+             if (dst_format == EXYNOS5_WFD_FORMAT && !src_cfg.drmMode) {
                  /* Default color will be black */
                  char * uv_addr;
                  dst_handle = private_handle_t::dynamicCast(gsc_data->dst_buf[i]);
@@ -2688,8 +2797,13 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
     dst_buf = gsc_data->dst_buf[gsc_data->current_buf];
     dst_handle = private_handle_t::dynamicCast(dst_buf);
 
-    dst_cfg.fw = dst_handle->stride;
-    dst_cfg.fh = dst_handle->vstride;
+    if(gsc_idx == HDMI_GSC_IDX) {
+        dst_cfg.fw = pdev->hdmi_w;
+        dst_cfg.fh = pdev->hdmi_h;
+    } else {
+        dst_cfg.fw = dst_handle->stride;
+        dst_cfg.fh = dst_handle->vstride;
+    }
     dst_cfg.yaddr = dst_handle->fd;
 #ifdef USES_WFD
     if (dst_format == EXYNOS5_WFD_FORMAT)
@@ -3233,9 +3347,18 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                 int acquireFenceFd = gsc.dst_cfg.releaseFenceFd;
                 int releaseFenceFd = -1;
 
+                video_layer = &layer;
+
+                if (pdev->is_video_layer == false)
+                    pdev->video_started = true;
+                else
+                    pdev->video_started = false;
+                pdev->is_video_layer = true;
+
+                hdmi_enable_layer(pdev, pdev->hdmi_layers[0]);
+
                 hdmi_output(pdev, pdev->hdmi_layers[0], layer, h, acquireFenceFd,
                                                                  &releaseFenceFd);
-                video_layer = &layer;
 
                 gsc.dst_buf_fence[gsc.current_buf] = releaseFenceFd;
                 gsc.current_buf = (gsc.current_buf + 1) % NUM_GSC_DST_BUFS;
@@ -3381,6 +3504,14 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
             }
 #endif
             fb_layer = &layer;
+
+            if (pdev->is_fb_layer == false)
+                pdev->fb_started = true;
+            else
+                pdev->fb_started = false;
+            pdev->is_fb_layer = true;
+
+            hdmi_enable_layer(pdev, pdev->hdmi_layers[1]);
         }
     }
 
@@ -3411,8 +3542,15 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
         }
 #endif
     }
-    if (!fb_layer)
+    if (!fb_layer) {
         hdmi_disable_layer(pdev, pdev->hdmi_layers[1]);
+        pdev->is_fb_layer = false;
+    }
+    if (!video_layer) {
+        hdmi_disable_layer(pdev, pdev->hdmi_layers[0]);
+        pdev->is_video_layer = false;
+    }
+
 #if defined(MIXER_UPDATE)
     if (exynos_v4l2_s_ctrl(pdev->hdmi_layers[1].fd, V4L2_CID_TV_UPDATE, 1) < 0) {
         ALOGE("%s: s_ctrl(CID_TV_UPDATE) failed %d", __func__, errno);

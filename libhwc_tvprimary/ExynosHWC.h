@@ -109,6 +109,10 @@ const size_t NUM_HDMI_BUFFERS = 3;
 #define NUM_VIRT_OVER   5
 #endif
 
+#ifdef GSC_VIDEO
+#define NUM_VIRT_OVER_HDMI 5
+#endif
+
 #ifdef HWC_SERVICES
 #include "../libhwcService/ExynosHWCService.h"
 namespace android {
@@ -358,6 +362,7 @@ struct exynos5_hwc_composer_device_1_t {
     int                     hdmi_video_rotation;    /* HAL_TRANSFORM_ROT_XXX */
     bool                    external_display_pause;
     bool                    local_external_display_pause;
+    bool                    popup_play_drm_contents;	
 #if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
     bool                    use_blocking_layer;
     int                     num_of_ext_disp_layer;
@@ -382,6 +387,17 @@ struct exynos5_hwc_composer_device_1_t {
     struct FB_TARGET_Info   fb_target_info[NUM_FB_TARGET];
     private_handle_t        *prev_handle_vfb;
 #endif
+
+    int  is_fb_layer;
+    int  is_video_layer;
+    int  fb_started;
+    int  video_started;
+
+#ifdef GSC_VIDEO
+    const void              *last_lay_hnd_hdmi[NUM_VIRT_OVER];
+    int                     virtual_ovly_flag_hdmi;
+#endif
+
 };
 
 #if defined(HWC_SERVICES)

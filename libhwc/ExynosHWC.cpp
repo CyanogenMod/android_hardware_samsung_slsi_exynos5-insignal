@@ -1477,18 +1477,14 @@ inline hwc_rect intersection(const hwc_rect &r1, const hwc_rect &r2)
 }
 
 #ifdef FORCEFB_YUVLAYER
-static inline bool yuv_src_cfg_changed(video_layer_config &c1, video_layer_config &c2)
-{
-    return c1.fw != c2.fw ||
-            c1.fh != c2.fh;
-}
-
-static inline bool yuv_dst_cfg_changed(video_layer_config &c1, video_layer_config &c2)
+static inline bool yuv_cfg_changed(video_layer_config &c1, video_layer_config &c2)
 {
     return c1.x != c2.x ||
             c1.y != c2.y ||
             c1.w != c2.w ||
             c1.h != c2.h ||
+            c1.fw != c2.fw ||
+            c1.fh != c2.fh ||
             c1.format != c2.format ||
             c1.rot != c2.rot ||
             c1.cacheable != c2.cacheable ||
@@ -1526,8 +1522,8 @@ static bool exynos5_compare_yuvlayer_config(hwc_layer_1_t &layer,
 
     /* check to save previous yuv layer configration */
     if (pre_src_data && pre_dst_data)
-         reconfigure = yuv_src_cfg_changed(new_src_cfg, *pre_src_data) ||
-            yuv_dst_cfg_changed(new_dst_cfg, *pre_dst_data);
+         reconfigure = yuv_cfg_changed(new_src_cfg, *pre_src_data) ||
+            yuv_cfg_changed(new_dst_cfg, *pre_dst_data);
 
     memcpy(pre_src_data, &new_src_cfg, sizeof(new_src_cfg));
     memcpy(pre_dst_data, &new_dst_cfg, sizeof(new_dst_cfg));

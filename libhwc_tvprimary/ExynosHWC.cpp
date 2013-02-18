@@ -3327,13 +3327,6 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
             if (h->flags & GRALLOC_USAGE_EXTERNAL_VIRTUALFB) {
 #ifdef USES_U4A
                 if (pdev->prev_handle_vfb != h) {
-#if 0
-                /* get the latest buffer by offset */
-                struct fb_var_screeninfo info;
-                if (ioctl(pdev->vfb_fd, FBIOGET_VSCREENINFO, &info) == -1)
-                    ALOGE("FBIOGET_VSCREENINFO ioctl failed: %s", strerror(errno));
-#endif
-
                 private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
                 hwc_layer_1_t dst_layer;
                 dst_layer.displayFrame.left = 0;
@@ -3342,18 +3335,8 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                 dst_layer.displayFrame.bottom = pdev->hdmi_h;
                 layer.releaseFenceFd = layer.acquireFenceFd;
 
-#if 0
-                /* this code will be used to display the latest buffer by offset */
-                int index = info.yoffset / HEIGHT(dst_layer.displayFrame);
-                int surface_fd = pdev->surface_fd_for_vfb[index];
-                if ((index < NUM_BUFFER_U4A) && surface_fd != -1) {
-                    h->fd = surface_fd;
-                    hdmi_output(pdev, pdev->hdmi_layers[0], dst_layer, h, -1, NULL);
-                }
-#else
                 hdmi_output(pdev, pdev->hdmi_layers[0], dst_layer, h, layer.acquireFenceFd,
                         &layer.releaseFenceFd);
-#endif
                 } else {
                     if (layer.acquireFenceFd)
                         close(layer.acquireFenceFd);
@@ -3549,37 +3532,6 @@ static int exynos5_set_wfd(exynos5_hwc_composer_device_1_t *pdev,
         }
     }
 
-#if 0
-    if (overlay_layer || target_layer) {
-        exynos5_gsc_data_t &gsc = pdev->gsc[HDMI_GSC_IDX];
-        overlay_layer = overlay_layer == NULL? target_layer : overlay_layer;
-        if (pdev->wfd_sleepctrl && pdev->wfd_blanked) {
-            buffer_handle_t dst_buf = gsc.dst_buf[gsc.current_buf];
-            private_handle_t *handle = private_handle_t::dynamicCast(dst_buf);
-
-            pdev->wfd_enabled = false;
-            runCompositor(pdev, *overlay_layer, handle, 0, 0xff, 0xff000000,
-                             BLIT_OP_SOLID_FILL, true, 0, 0);
-            wfd_output(dst_buf, pdev, &gsc, *overlay_layer);
-            pdev->wfd_skipping = 1;
-        } else if (pdev->wfd_blanked) {
-            pdev->wfd_enabled = false;
-            pdev->wfd_skipping = 1;
-        } else {
-            int ret = exynos5_config_gsc_m2m(*overlay_layer, pdev, &gsc,
-                          HDMI_GSC_IDX, EXYNOS5_WFD_FORMAT, NULL);
-            if (ret < 0) {
-                ALOGE("failed to configure gscaler for WFD layer");
-                return ret;
-            }
-            pdev->wfd_w = ALIGN(gsc.dst_cfg.w, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
-            pdev->wfd_h = ALIGN(gsc.dst_cfg.h, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
-
-            buffer_handle_t dst_buf = gsc.dst_buf[gsc.current_buf];
-            wfd_output(dst_buf, pdev, &gsc, *overlay_layer);
-        }
-    }
-#else
     if (overlay_layer || target_layer) {
         exynos5_gsc_data_t &gsc = pdev->gsc[WFD_GSC_IDX];
         overlay_layer = overlay_layer == NULL? target_layer : overlay_layer;
@@ -3594,7 +3546,6 @@ static int exynos5_set_wfd(exynos5_hwc_composer_device_1_t *pdev,
         buffer_handle_t dst_buf = gsc.dst_buf[gsc.current_buf];
         wfd_output(dst_buf, pdev, &gsc, *overlay_layer);
     }
-#endif
 
     return 0;
 }
@@ -3811,15 +3762,6 @@ static int exynos5_eventControl(struct hwc_composer_device_1 *dev, int dpy,
 static void handle_hdmi_uevent(struct exynos5_hwc_composer_device_1_t *pdev,
         const char *buff, int len)
 {
-#if 0
-#ifdef USES_WFD
-    if (pdev->wfd_hpd) {
-        ALOGW("Hotplug is already used by Wifi Display");
-        return;
-    }
-#endif
-#endif
-
     const char *s = buff;
     s += strlen(s) + 1;
 
@@ -3857,10 +3799,6 @@ static void handle_hdmi_uevent(struct exynos5_hwc_composer_device_1_t *pdev,
     /* hwc_dev->procs is set right after the device is opened, but there is
      * still a race condition where a hotplug event might occur after the open
      * but before the procs are registered. */
-#if 0
-    if (pdev->procs)
-        pdev->procs->hotplug(pdev->procs, HWC_DISPLAY_EXTERNAL, pdev->hdmi_hpd);
-#endif
 }
 
 static void handle_vsync_event(struct exynos5_hwc_composer_device_1_t *pdev)

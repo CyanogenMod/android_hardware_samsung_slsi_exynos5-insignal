@@ -1551,7 +1551,6 @@ static void exynos5_skip_static_layers(exynos5_hwc_composer_device_1_t *pdev,
         if (pdev->bufs.overlay_map[i] != -1) {
             last_ovly_lay_idx = pdev->bufs.overlay_map[i];
             pdev->last_ovly_win_idx = i;
-            break;
         }
     }
 
@@ -1587,7 +1586,7 @@ static void exynos5_skip_static_layers(exynos5_hwc_composer_device_1_t *pdev,
     }
 
     for (size_t i = contents->numHwLayers - last_ovly_lay_idx; i < NUM_VIRT_OVER; i++)
-        pdev->last_lay_hnd[i - last_ovly_lay_idx] = 0;
+        pdev->last_lay_hnd[i] = 0;
 
     return;
 }

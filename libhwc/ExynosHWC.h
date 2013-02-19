@@ -375,6 +375,11 @@ struct exynos5_hwc_composer_device_1_t {
     private_handle_t        *prev_handle_vfb;
 #endif
 
+    int  is_fb_layer;
+    int  is_video_layer;
+    int  fb_started;
+    int  video_started;
+
 #ifdef GSC_VIDEO
     const void              *last_lay_hnd_hdmi[NUM_VIRT_OVER];
     int                     virtual_ovly_flag_hdmi;

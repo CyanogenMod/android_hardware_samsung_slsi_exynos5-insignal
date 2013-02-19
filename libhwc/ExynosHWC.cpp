@@ -128,6 +128,15 @@ static inline bool gsc_src_cfg_changed(exynos_gsc_img &c1, exynos_gsc_img &c2)
             c1.fh != c2.fh;
 }
 
+static inline bool mxr_src_cfg_changed(exynos_gsc_img &c1, exynos_gsc_img &c2)
+{
+    return c1.format != c2.format ||
+            c1.rot != c2.rot ||
+            c1.cacheable != c2.cacheable ||
+            c1.drmMode != c2.drmMode ||
+            c1.fw != c2.fw ||
+            c1.fh != c2.fh;
+}
 static enum s3c_fb_pixel_format exynos5_format_to_s3c_format(int format)
 {
     switch (format) {
@@ -1075,23 +1084,7 @@ static int hdmi_output(struct exynos5_hwc_composer_device_1_t *dev,
     cfg.w = WIDTH(layer.displayFrame);
     cfg.h = HEIGHT(layer.displayFrame);
 
-    if (gsc_src_cfg_changed(hl.cfg, cfg)) {
-        hdmi_disable_layer(dev, hl);
-
-        struct v4l2_format fmt;
-        memset(&fmt, 0, sizeof(fmt));
-        fmt.type  = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
-        fmt.fmt.pix_mp.width       = h->stride;
-        fmt.fmt.pix_mp.height      = cfg.h;
-        fmt.fmt.pix_mp.pixelformat = V4L2_PIX_FMT_BGR32;
-        fmt.fmt.pix_mp.field       = V4L2_FIELD_ANY;
-        fmt.fmt.pix_mp.num_planes  = 1;
-        ret = exynos_v4l2_s_fmt(hl.fd, &fmt);
-        if (ret < 0) {
-            ALOGE("%s: layer%d: s_fmt failed %d", __func__, hl.id, errno);
-            goto err;
-        }
-
+    if (gsc_src_cfg_changed(hl.cfg, cfg) || dev->fb_started || dev->video_started) {
         struct v4l2_subdev_crop sd_crop;
         memset(&sd_crop, 0, sizeof(sd_crop));
         if (hl.id == 0)
@@ -1099,16 +1092,36 @@ static int hdmi_output(struct exynos5_hwc_composer_device_1_t *dev,
         else
             sd_crop.pad   = MIXER_G1_SUBDEV_PAD_SOURCE;
 
-        struct v4l2_subdev_format sd_fmt;
-        memset(&sd_fmt, 0, sizeof(sd_fmt));
-        sd_fmt.pad   = sd_crop.pad;
-        sd_fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
-        sd_fmt.format.width  = h->stride;
-        sd_fmt.format.height = cfg.h;
-        sd_fmt.format.code   = V4L2_MBUS_FMT_XRGB8888_4X8_LE;
-        if (exynos_subdev_s_fmt(dev->hdmi_mixer0, &sd_fmt) < 0) {
-            ALOGE("%s: s_fmt failed pad=%d", __func__, sd_fmt.pad);
-            return -1;
+        if (mxr_src_cfg_changed(hl.cfg, cfg) || dev->fb_started || dev->video_started) {
+            hdmi_disable_layer(dev, hl);
+
+            struct v4l2_format fmt;
+            memset(&fmt, 0, sizeof(fmt));
+            fmt.type  = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
+            fmt.fmt.pix_mp.width       = h->stride;
+            fmt.fmt.pix_mp.height      = cfg.h;
+            fmt.fmt.pix_mp.pixelformat = V4L2_PIX_FMT_BGR32;
+            fmt.fmt.pix_mp.field       = V4L2_FIELD_ANY;
+            fmt.fmt.pix_mp.num_planes  = 1;
+            ret = exynos_v4l2_s_fmt(hl.fd, &fmt);
+            if (ret < 0) {
+                ALOGE("%s: layer%d: s_fmt failed %d", __func__, hl.id, errno);
+                goto err;
+            }
+
+            struct v4l2_subdev_format sd_fmt;
+            memset(&sd_fmt, 0, sizeof(sd_fmt));
+            sd_fmt.pad   = sd_crop.pad;
+            sd_fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+            sd_fmt.format.width  = h->stride;
+            sd_fmt.format.height = cfg.h;
+            sd_fmt.format.code   = V4L2_MBUS_FMT_XRGB8888_4X8_LE;
+            if (exynos_subdev_s_fmt(dev->hdmi_mixer0, &sd_fmt) < 0) {
+                ALOGE("%s: s_fmt failed pad=%d", __func__, sd_fmt.pad);
+                return -1;
+            }
+
+            hdmi_enable_layer(dev, hl);
         }
 
         sd_crop.which = V4L2_SUBDEV_FORMAT_ACTIVE;
@@ -1120,8 +1133,6 @@ static int hdmi_output(struct exynos5_hwc_composer_device_1_t *dev,
             ALOGE("%s: s_crop failed pad=%d", __func__, sd_crop.pad);
             goto err;
         }
-
-        hdmi_enable_layer(dev, hl);
 
         ALOGV("HDMI layer%d configuration:", hl.id);
         dump_gsc_img(cfg);
@@ -3302,6 +3313,13 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                 int releaseFenceFd = -1;
 
                 video_layer = &layer;
+
+                if (pdev->is_video_layer == false)
+                    pdev->video_started = true;
+                else
+                    pdev->video_started = false;
+                pdev->is_video_layer = true;
+
                 hdmi_enable_layer(pdev, pdev->hdmi_layers[0]);
 
                 hdmi_output(pdev, pdev->hdmi_layers[0], layer, h, acquireFenceFd,
@@ -3448,6 +3466,13 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
             }
 #endif
             fb_layer = &layer;
+
+            if (pdev->is_fb_layer == false)
+                pdev->fb_started = true;
+            else
+                pdev->fb_started = false;
+            pdev->is_fb_layer = true;
+
             hdmi_enable_layer(pdev, pdev->hdmi_layers[1]);
         }
     }
@@ -3479,10 +3504,14 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
         }
 #endif
     }
-    if (!fb_layer)
+    if (!fb_layer) {
         hdmi_disable_layer(pdev, pdev->hdmi_layers[1]);
-    if (!video_layer)
+        pdev->is_fb_layer = false;
+    }
+    if (!video_layer) {
         hdmi_disable_layer(pdev, pdev->hdmi_layers[0]);
+        pdev->is_video_layer = false;
+    }
 
 #if defined(MIXER_UPDATE)
     if (exynos_v4l2_s_ctrl(pdev->hdmi_layers[1].fd, V4L2_CID_TV_UPDATE, 1) < 0) {

@@ -2509,11 +2509,10 @@ static int exynos5_prepare_wfd(exynos5_hwc_composer_device_1_t *pdev,
             continue;
         }
 
-#if defined(GSC_VIDEO)
         if (layer.handle) {
             private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
 
-            if ((exynos5_get_drmMode(h->flags) == SECURE_DRM) || (h->flags & GRALLOC_USAGE_EXTERNAL_DISP) &&
+            if ((exynos5_get_drmMode(h->flags) != NO_DRM) && (h->flags & GRALLOC_USAGE_EXTERNAL_DISP) &&
 #ifdef SUPPORT_GSC_LOCAL_PATH
                 (exynos5_supports_gscaler(pdev, layer, h->format, false, 0))) {
 #else
@@ -2527,7 +2526,7 @@ static int exynos5_prepare_wfd(exynos5_hwc_composer_device_1_t *pdev,
                     struct v4l2_rect dest_rect;
 
                     hdmi_cal_dest_rect(WIDTH(layer.sourceCrop), HEIGHT(layer.sourceCrop),
-                            pdev->disp_w, pdev->disp_h, &dest_rect);
+                            pdev->wfd_disp_w, pdev->wfd_disp_h, &dest_rect);
                     layer.displayFrame.left = dest_rect.left;
                     layer.displayFrame.top = dest_rect.top;
                     layer.displayFrame.right = dest_rect.width + dest_rect.left;
@@ -2539,7 +2538,6 @@ static int exynos5_prepare_wfd(exynos5_hwc_composer_device_1_t *pdev,
                 }
             }
         }
-#endif
         layer.compositionType = HWC_FRAMEBUFFER;
         dump_layer(&layer);
     }
@@ -2730,7 +2728,7 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
                     format, usage, &gsc_data->dst_buf[i],
                     &dst_stride);
 #ifdef USES_WFD
-             if (dst_format == EXYNOS5_WFD_FORMAT) {
+             if (dst_format == EXYNOS5_WFD_FORMAT && !src_cfg.drmMode) {
                  /* Default color will be black */
                  char * uv_addr;
                  dst_handle = private_handle_t::dynamicCast(gsc_data->dst_buf[i]);

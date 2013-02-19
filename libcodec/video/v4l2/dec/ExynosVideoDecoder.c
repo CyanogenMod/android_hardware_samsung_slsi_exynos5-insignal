@@ -1888,6 +1888,36 @@ EXIT:
 }
 
 /*
+ * [Decoder Buffer OPS] Apply Registered Buffer (Output)
+ */
+static ExynosVideoErrorType MFC_Decoder_Apply_RegisteredBuffer_Outbuf(void *pHandle)
+{
+    ExynosVideoDecContext *pCtx = (ExynosVideoDecContext *)pHandle;
+    ExynosVideoErrorType   ret  = VIDEO_ERROR_NONE;
+
+    if (pCtx == NULL) {
+        ALOGE("%s: Video context info must be supplied", __func__);
+        ret = VIDEO_ERROR_BADPARAM;
+        goto EXIT;
+    }
+
+    if (exynos_v4l2_s_ctrl(pCtx->hDec, V4L2_CID_MPEG_VIDEO_DECODER_WAIT_DECODING_START, 1) != 0) {
+        ALOGW("%s: The requested function is not implemented", __func__);
+        ret = VIDEO_ERROR_APIFAIL;
+        //goto EXIT;    /* For Backward compatibility */
+    }
+
+    ret = MFC_Decoder_Run_Outbuf(pHandle);
+    if (VIDEO_ERROR_NONE != ret)
+        goto EXIT;
+
+    ret = MFC_Decoder_Stop_Outbuf(pHandle);
+
+EXIT:
+    return ret;
+}
+
+/*
  * [Decoder OPS] Common
  */
 static ExynosVideoDecOps defDecOps = {
@@ -1927,6 +1957,7 @@ static ExynosVideoDecBufferOps defInbufOps = {
     .Clear_RegisteredBuffer = MFC_Decoder_Clear_RegisteredBuffer_Inbuf,
     .Clear_Queue            = MFC_Decoder_Clear_Queued_Inbuf,
     .Cleanup_Buffer         = MFC_Decoder_Cleanup_Buffer_Inbuf,
+    .Apply_RegisteredBuffer = NULL,
 };
 
 /*
@@ -1949,6 +1980,7 @@ static ExynosVideoDecBufferOps defOutbufOps = {
     .Clear_RegisteredBuffer = MFC_Decoder_Clear_RegisteredBuffer_Outbuf,
     .Clear_Queue            = MFC_Decoder_Clear_Queued_Outbuf,
     .Cleanup_Buffer         = MFC_Decoder_Cleanup_Buffer_Outbuf,
+    .Apply_RegisteredBuffer = MFC_Decoder_Apply_RegisteredBuffer_Outbuf,
 };
 
 int Exynos_Video_Register_Decoder(

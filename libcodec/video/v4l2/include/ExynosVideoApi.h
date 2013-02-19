@@ -275,6 +275,7 @@ typedef struct _ExynosVideoDecBufferOps {
     ExynosVideoErrorType  (*Clear_RegisteredBuffer)(void *pHandle);
     ExynosVideoErrorType  (*Clear_Queue)(void *pHandle);
     ExynosVideoErrorType  (*Cleanup_Buffer)(void *pHandle);
+    ExynosVideoErrorType  (*Apply_RegisteredBuffer)(void *pHandle);
 } ExynosVideoDecBufferOps;
 
 typedef struct _ExynosVideoEncBufferOps {

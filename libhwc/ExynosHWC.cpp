@@ -3301,9 +3301,11 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                 int acquireFenceFd = gsc.dst_cfg.releaseFenceFd;
                 int releaseFenceFd = -1;
 
+                video_layer = &layer;
+                hdmi_enable_layer(pdev, pdev->hdmi_layers[0]);
+
                 hdmi_output(pdev, pdev->hdmi_layers[0], layer, h, acquireFenceFd,
                                                                  &releaseFenceFd);
-                video_layer = &layer;
 
                 gsc.dst_buf_fence[gsc.current_buf] = releaseFenceFd;
                 gsc.current_buf = (gsc.current_buf + 1) % NUM_GSC_DST_BUFS;
@@ -3446,6 +3448,7 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
             }
 #endif
             fb_layer = &layer;
+            hdmi_enable_layer(pdev, pdev->hdmi_layers[1]);
         }
     }
 
@@ -3478,6 +3481,9 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
     }
     if (!fb_layer)
         hdmi_disable_layer(pdev, pdev->hdmi_layers[1]);
+    if (!video_layer)
+        hdmi_disable_layer(pdev, pdev->hdmi_layers[0]);
+
 #if defined(MIXER_UPDATE)
     if (exynos_v4l2_s_ctrl(pdev->hdmi_layers[1].fd, V4L2_CID_TV_UPDATE, 1) < 0) {
         ALOGE("%s: s_ctrl(CID_TV_UPDATE) failed %d", __func__, errno);

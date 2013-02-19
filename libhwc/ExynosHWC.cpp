@@ -2393,8 +2393,6 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                     layer.compositionType = HWC_OVERLAY;
                     layer.flags &= ~HWC_SKIP_HDMI_RENDERING;
                 }
-#else
-                layer.compositionType = HWC_OVERLAY;
 #endif
 #if defined(HWC_SERVICES)
             }
@@ -2403,23 +2401,7 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
             if (i == videoIndex) {
                 struct v4l2_rect dest_rect;
 #if defined(S3D_SUPPORT)
-                if (pdev->mS3DMode == S3D_MODE_DISABLED) {
-#endif
-                    bool rot90or270 = !!((pdev->hdmi_video_rotation) & HAL_TRANSFORM_ROT_90);
-                    if (rot90or270)
-                        hdmi_cal_dest_rect(HEIGHT(layer.sourceCrop), WIDTH(layer.sourceCrop),
-                                pdev->hdmi_w, pdev->hdmi_h, &dest_rect);
-                    else
-                        hdmi_cal_dest_rect(WIDTH(layer.sourceCrop), HEIGHT(layer.sourceCrop),
-                                pdev->hdmi_w, pdev->hdmi_h, &dest_rect);
-
-                    layer.displayFrame.left = dest_rect.left;
-                    layer.displayFrame.top = dest_rect.top;
-                    layer.displayFrame.right = dest_rect.width + dest_rect.left;
-                    layer.displayFrame.bottom = dest_rect.height + dest_rect.top;
-                    layer.transform = pdev->hdmi_video_rotation;
-#if defined(S3D_SUPPORT)
-                } else {
+                if (pdev->mS3DMode != S3D_MODE_DISABLED) {
                     layer.displayFrame.left = 0;
                     layer.displayFrame.top = 0;
                     layer.displayFrame.right = pdev->hdmi_w;

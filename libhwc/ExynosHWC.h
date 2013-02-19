@@ -97,6 +97,10 @@ const size_t NUM_HDMI_BUFFERS = 3;
 #define NUM_VIRT_OVER   5
 #endif
 
+#ifdef GSC_VIDEO
+#define NUM_VIRT_OVER_HDMI 5
+#endif
+
 #ifdef HWC_SERVICES
 #include "../libhwcService/ExynosHWCService.h"
 namespace android {
@@ -370,6 +374,12 @@ struct exynos5_hwc_composer_device_1_t {
     struct FB_TARGET_Info   fb_target_info[NUM_FB_TARGET];
     private_handle_t        *prev_handle_vfb;
 #endif
+
+#ifdef GSC_VIDEO
+    const void              *last_lay_hnd_hdmi[NUM_VIRT_OVER];
+    int                     virtual_ovly_flag_hdmi;
+#endif
+
 };
 
 #if defined(HWC_SERVICES)

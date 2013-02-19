@@ -1186,6 +1186,56 @@ err:
     return ret;
 }
 
+#if defined(GSC_VIDEO)
+static void hdmi_skip_static_layers(exynos5_hwc_composer_device_1_t *pdev,
+        hwc_display_contents_1_t *contents, int ovly_idx)
+{
+    static int init_flag = 0;
+    pdev->virtual_ovly_flag_hdmi = 0;
+
+    if (contents->flags & HWC_GEOMETRY_CHANGED) {
+        init_flag = 0;
+        return;
+    }
+
+    if ((ovly_idx == -1) || (ovly_idx >= (contents->numHwLayers - 2)) ||
+        ((contents->numHwLayers - ovly_idx - 1) >= NUM_VIRT_OVER_HDMI)) {
+        init_flag = 0;
+        return;
+    }
+
+    ovly_idx++;
+    if (init_flag == 1) {
+        for (size_t i = ovly_idx; i < contents->numHwLayers - 1; i++) {
+            hwc_layer_1_t &layer = contents->hwLayers[i];
+            if (!layer.handle || (pdev->last_lay_hnd_hdmi[i - ovly_idx] !=  layer.handle)) {
+                init_flag = 0;
+                return;
+            }
+        }
+
+        pdev->virtual_ovly_flag_hdmi = 1;
+        for (size_t i = ovly_idx; i < contents->numHwLayers - 1; i++) {
+            hwc_layer_1_t &layer = contents->hwLayers[i];
+            if (layer.compositionType == HWC_FRAMEBUFFER)
+                layer.compositionType = HWC_OVERLAY;
+        }
+        return;
+    }
+
+    init_flag = 1;
+    for (size_t i = ovly_idx; i < contents->numHwLayers; i++) {
+        hwc_layer_1_t &layer = contents->hwLayers[i];
+        pdev->last_lay_hnd_hdmi[i - ovly_idx] = layer.handle;
+    }
+
+    for (size_t i = contents->numHwLayers - ovly_idx; i < NUM_VIRT_OVER; i++)
+        pdev->last_lay_hnd_hdmi[i - ovly_idx] = 0;
+
+    return;
+}
+#endif
+
 #if defined(HWC_SERVICES)
 void hdmi_set_preset(exynos5_hwc_composer_device_1_t *pdev, int preset)
 {
@@ -2135,7 +2185,7 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
     hwc_layer_1_t *video_layer = NULL;
 #if defined(GSC_VIDEO)
     int numVideoLayers = 0;
-    int videoIndex;
+    int videoIndex = -1;
 #endif
 
     pdev->force_mirror_mode = false;
@@ -2410,6 +2460,9 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 #endif
             }
         }
+
+            hdmi_skip_static_layers(pdev, contents, videoIndex);
+
     } else if (numVideoLayers > 1) {
         for (int i = 0; i < contents->numHwLayers; i++) {
             hwc_layer_1_t &layer = contents->hwLayers[i];

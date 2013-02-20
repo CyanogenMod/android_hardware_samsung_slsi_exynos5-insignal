@@ -676,7 +676,7 @@ int runCompositor(exynos5_hwc_composer_device_1_t *pdev,
     if (!force_clear) {
         srcImgRect = {src_layer.sourceCrop.left, src_layer.sourceCrop.top,
                 WIDTH(src_layer.sourceCrop), HEIGHT(src_layer.sourceCrop),
-                WIDTH(src_layer.sourceCrop), HEIGHT(src_layer.sourceCrop),
+                src_handle->stride, src_handle->vstride,
                 src_handle->format};
     }
 
@@ -2315,7 +2315,7 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                             }
                         }
                         layer.compositionType = HWC_OVERLAY;
-                        layer.flags &= ~HWC_SKIP_HDMI_RENDERING;
+                        layer.flags = 0;
                     } else {
                         /* SKIP HDMI rendering others */
                         layer.compositionType = HWC_OVERLAY;
@@ -2336,7 +2336,7 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                             layer.displayFrame.right = dest_rect.width + dest_rect.left;
                             layer.displayFrame.bottom = dest_rect.height + dest_rect.top;
                             layer.compositionType = HWC_OVERLAY;
-                            layer.flags &= ~HWC_SKIP_HDMI_RENDERING;
+                            layer.flags = 0;
                         } else if(h->flags & GRALLOC_USAGE_EXTERNAL_FLEXIBLE) {
                             /* if EXTERNL_FLEXIBLE surface, it use saved displayFrame geometry in prepare_fimd()*/
                             layer.displayFrame.left = pdev->saved_layer_for_external[used_layer_count].x;
@@ -2347,7 +2347,7 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                                 + pdev->saved_layer_for_external[used_layer_count].y;
                             used_layer_count++;
                             layer.compositionType = HWC_OVERLAY;
-                            layer.flags &= ~HWC_SKIP_HDMI_RENDERING;
+                            layer.flags = 0;
                         }
                     } else {
                         /* SKIP HDMI rendering others */
@@ -2375,7 +2375,7 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                                 video_layer = &layer;
                                 layer.compositionType = HWC_OVERLAY;
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
-                                layer.flags &= ~HWC_SKIP_HDMI_RENDERING;
+                                layer.flags = 0;
 #endif
 #if defined(GSC_VIDEO)
                                 videoIndex = i;
@@ -2403,11 +2403,11 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                                 layer.displayFrame.right = dest_rect.width + dest_rect.left;
                                 layer.displayFrame.bottom = dest_rect.height + dest_rect.top;
                                 layer.compositionType = HWC_OVERLAY;
-                                layer.flags &= ~HWC_SKIP_HDMI_RENDERING;
+                                layer.flags = 0;
                             /* if EXTERNAL_FLEXIBLE surface, it use saved displayFrame geometry in prepare_fimd()*/
                             } else if(h->flags & GRALLOC_USAGE_EXTERNAL_FLEXIBLE) {
                                 layer.compositionType = HWC_OVERLAY;
-                                layer.flags &= ~HWC_SKIP_HDMI_RENDERING;
+                                layer.flags = 0;
                                 layer.displayFrame.left = pdev->saved_layer_for_external[used_layer_count].x;
                                 layer.displayFrame.top = pdev->saved_layer_for_external[used_layer_count].y;
                                 layer.displayFrame.right = pdev->saved_layer_for_external[used_layer_count].w
@@ -2455,7 +2455,7 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
                 if (i == videoIndex) {
                     layer.compositionType = HWC_OVERLAY;
-                    layer.flags &= ~HWC_SKIP_HDMI_RENDERING;
+                    layer.flags = 0;
                 }
 #endif
 #if defined(HWC_SERVICES)

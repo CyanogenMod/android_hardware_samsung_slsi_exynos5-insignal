@@ -51,8 +51,8 @@ ifeq ($(BOARD_USES_FB_PHY_LINEAR),true)
 	LOCAL_CFLAGS += -DUSE_FB_PHY_LINEAR
 endif
 
-ifeq ($(BOARD_USES_U4A),true)
-	LOCAL_CFLAGS += -DUSES_U4A
+ifeq ($(BOARD_USES_VFB),true)
+	LOCAL_CFLAGS += -DUSES_VFB
 endif
 
 ifeq ($(BOARD_HDMI_INCAPABLE), true)

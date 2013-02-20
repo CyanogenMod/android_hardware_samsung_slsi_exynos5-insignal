@@ -2295,7 +2295,7 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 #endif
                 /* EXTENTION mode */
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
-#ifdef USES_U4A
+#ifdef USES_VFB
                 if (pdev->num_of_ext_vfb_layer) {
                     if (h->flags & GRALLOC_USAGE_EXTERNAL_VIRTUALFB) {
                         if (!pdev->already_mapped_vfb) {
@@ -3338,7 +3338,7 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
             if (h->flags & GRALLOC_USAGE_EXTERNAL_VIRTUALFB) {
-#ifdef USES_U4A
+#ifdef USES_VFB
                 if (pdev->prev_handle_vfb != h) {
 #if 0
                     /* get the latest buffer by offset */
@@ -4449,7 +4449,7 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
     dev->composite_buf_height = 0;
     dev->already_mapped_vfb = false;
 
-#ifdef USES_U4A
+#ifdef USES_VFB
     struct fb_var_screeninfo var_info;
     struct s3cfb_user_window window;
     int vfb_fd;

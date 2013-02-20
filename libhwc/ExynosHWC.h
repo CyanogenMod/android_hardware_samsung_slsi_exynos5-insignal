@@ -350,6 +350,7 @@ struct exynos5_hwc_composer_device_1_t {
     int                     hdmi_video_rotation;    /* HAL_TRANSFORM_ROT_XXX */
     bool                    external_display_pause;
     bool                    local_external_display_pause;
+    bool                    popup_play_drm_contents;
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
     bool                    use_blocking_layer;
     int                     num_of_ext_disp_layer;

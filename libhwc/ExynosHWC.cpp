@@ -1714,7 +1714,7 @@ static int exynos5_prepare_fimd(exynos5_hwc_composer_device_1_t *pdev,
 retry:
 
 #if defined(FORCE_YUV_OVERLAY)
-    bool popup_play_drm_contents = false;
+    pdev->popup_play_drm_contents = false;
     int popup_drm_lay_idx = 0;
     bool contents_has_drm_surface = false;
     for (size_t i = 0; i < contents->numHwLayers; i++) {
@@ -1728,7 +1728,7 @@ retry:
             }
         }
     }
-    popup_play_drm_contents = !!(contents_has_drm_surface && popup_drm_lay_idx);
+    pdev->popup_play_drm_contents = !!(contents_has_drm_surface && popup_drm_lay_idx);
 #endif
 
     for (size_t i = 0; i < NUM_HW_WINDOWS; i++)
@@ -1763,8 +1763,8 @@ retry:
 #endif
 
 #if defined(FORCE_YUV_OVERLAY)
-            if (!popup_play_drm_contents ||
-                (popup_play_drm_contents && (popup_drm_lay_idx == i)))
+            if (!pdev->popup_play_drm_contents ||
+                (pdev->popup_play_drm_contents && (popup_drm_lay_idx == i))) {
 #endif
 
 #ifndef HWC_DYNAMIC_RECOMPOSITION
@@ -1779,12 +1779,15 @@ retry:
                     ALOGV("\tlayer %u: overlay supported", i);
                     layer.compositionType = HWC_OVERLAY;
 #if defined(FORCE_YUV_OVERLAY)
-                    if (popup_play_drm_contents)
+                    if (pdev->popup_play_drm_contents)
                         layer.hints = HWC_HINT_CLEAR_FB;
 #endif
                     dump_layer(&contents->hwLayers[i]);
                     continue;
                 }
+#if defined(FORCE_YUV_OVERLAY)
+            }
+#endif
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
             }
 #endif
@@ -1804,7 +1807,7 @@ retry:
     if (fb_needed) {
         for (size_t i = first_fb; i < last_fb; i++) {
 #if defined(FORCE_YUV_OVERLAY)
-            if (popup_play_drm_contents && (popup_drm_lay_idx == i)) {
+            if (pdev->popup_play_drm_contents && (popup_drm_lay_idx == i)) {
                 first_fb = 1;
                 break;
             }
@@ -1941,6 +1944,9 @@ retry:
     for (size_t i = 0; i < contents->numHwLayers; i++) {
         hwc_layer_1_t &layer = contents->hwLayers[i];
 
+#if defined(FORCE_YUV_OVERLAY)
+        if (!pdev->popup_play_drm_contents)
+#endif
         if (fb_needed && i == first_fb) {
             ALOGV("assigning framebuffer to window %u\n",
                     nextWindow);
@@ -2017,7 +2023,12 @@ retry:
         }
     }
 #ifdef SKIP_STATIC_LAYER_COMP
-    exynos5_skip_static_layers(pdev, contents);
+#if defined(FORCE_YUV_OVERLAY)
+    if (pdev->popup_play_drm_contents)
+        pdev->virtual_ovly_flag = 0;
+    else
+#endif
+        exynos5_skip_static_layers(pdev, contents);
     if (pdev->virtual_ovly_flag)
         fb_needed = 0;
 #endif

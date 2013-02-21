@@ -3549,14 +3549,6 @@ static int exynos5_set_wfd(exynos5_hwc_composer_device_1_t *pdev,
         hwc_layer_1_t &layer = contents->hwLayers[i];
         private_handle_t *src_handle = private_handle_t::dynamicCast(layer.handle);
 
-        if (layer.flags & HWC_SCREENSHOT_ANIMATOR_LAYER) {
-            ALOGV("WFD during rotation layer %d", i);
-            if (layer.acquireFenceFd)
-                close(layer.acquireFenceFd);
-            layer.releaseFenceFd = -1;
-            return 0;
-        }
-
         if (layer.flags & HWC_SKIP_LAYER) {
             ALOGV("WFD skipping layer %d", i);
             continue;

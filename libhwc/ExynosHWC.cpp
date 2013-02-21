@@ -1979,6 +1979,7 @@ retry:
                          * skipped on LCD.
                          */
                          ALOGV("DRM video layer-%d display is skipped on LCD", i);
+                         pdev->bufs.overlay_map[nextWindow] = -1;
                          continue;
                     }
 #endif

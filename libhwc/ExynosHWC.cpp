@@ -4060,8 +4060,17 @@ static int exynos5_blank(struct hwc_composer_device_1 *dev, int disp, int blank)
         }
 #endif
         if (pdev->hdmi_hpd) {
-            if (blank && !pdev->hdmi_blanked)
+            if (blank && !pdev->hdmi_blanked) {
+                /*
+                 * V4L2_CID_TV_BLANK becomes effective
+                 * only if it is called before hdmi_disable() : STREAMOFF
+                 */
+                if (exynos_v4l2_s_ctrl(pdev->hdmi_layers[1].fd, V4L2_CID_TV_BLANK, 1) < 0) {
+                    ALOGE("%s: s_ctrl(CID_TV_BLANK) failed %d", __func__, errno);
+                    return -1;
+                }
                 hdmi_disable(pdev);
+            }
             pdev->hdmi_blanked = !!blank;
         }
         break;

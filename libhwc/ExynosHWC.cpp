@@ -1095,14 +1095,19 @@ static int hdmi_output(struct exynos5_hwc_composer_device_1_t *dev,
         else
             sd_crop.pad   = MIXER_G1_SUBDEV_PAD_SOURCE;
 
-        if (mxr_src_cfg_changed(hl.cfg, cfg) || dev->fb_started || dev->video_started) {
+        if ((mxr_src_cfg_changed(hl.cfg, cfg) && (hl.id == 0)) || (hl.id == 1) || dev->video_started) {
             hdmi_disable_layer(dev, hl);
 
             struct v4l2_format fmt;
             memset(&fmt, 0, sizeof(fmt));
             fmt.type  = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
-            fmt.fmt.pix_mp.width       = h->stride;
-            fmt.fmt.pix_mp.height      = cfg.h;
+            if (hl.id == 0) {
+                fmt.fmt.pix_mp.width   = dev->hdmi_w;
+                fmt.fmt.pix_mp.height  = dev->hdmi_h;
+            } else {
+                fmt.fmt.pix_mp.width   = h->stride;
+                fmt.fmt.pix_mp.height  = cfg.h;
+            }
             fmt.fmt.pix_mp.pixelformat = V4L2_PIX_FMT_BGR32;
             fmt.fmt.pix_mp.field       = V4L2_FIELD_ANY;
             fmt.fmt.pix_mp.num_planes  = 1;
@@ -1116,8 +1121,13 @@ static int hdmi_output(struct exynos5_hwc_composer_device_1_t *dev,
             memset(&sd_fmt, 0, sizeof(sd_fmt));
             sd_fmt.pad   = sd_crop.pad;
             sd_fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
-            sd_fmt.format.width  = h->stride;
-            sd_fmt.format.height = cfg.h;
+            if (hl.id == 0) {
+                sd_fmt.format.width    = dev->hdmi_w;
+                sd_fmt.format.height   = dev->hdmi_h;
+            } else {
+                sd_fmt.format.width    = h->stride;
+                sd_fmt.format.height   = cfg.h;
+            }
             sd_fmt.format.code   = V4L2_MBUS_FMT_XRGB8888_4X8_LE;
             if (exynos_subdev_s_fmt(dev->hdmi_mixer0, &sd_fmt) < 0) {
                 ALOGE("%s: s_fmt failed pad=%d", __func__, sd_fmt.pad);
@@ -2719,7 +2729,10 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
             h = pdev->wfd_h;
         } else
 #endif
-        {
+        if (gsc_idx == HDMI_GSC_IDX) {
+            w = pdev->hdmi_w;
+            h = pdev->hdmi_h;
+        } else {
             w = ALIGN(dst_cfg.w, GSC_DST_W_ALIGNMENT_RGB888);
             h = ALIGN(dst_cfg.h, GSC_DST_H_ALIGNMENT_RGB888);
         }
@@ -2787,8 +2800,13 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
     dst_buf = gsc_data->dst_buf[gsc_data->current_buf];
     dst_handle = private_handle_t::dynamicCast(dst_buf);
 
-    dst_cfg.fw = dst_handle->stride;
-    dst_cfg.fh = dst_handle->vstride;
+    if(gsc_idx == HDMI_GSC_IDX) {
+        dst_cfg.fw = pdev->hdmi_w;
+        dst_cfg.fh = pdev->hdmi_h;
+    } else {
+        dst_cfg.fw = dst_handle->stride;
+        dst_cfg.fh = dst_handle->vstride;
+    }
     dst_cfg.yaddr = dst_handle->fd;
 #ifdef USES_WFD
     if (dst_format == EXYNOS5_WFD_FORMAT)

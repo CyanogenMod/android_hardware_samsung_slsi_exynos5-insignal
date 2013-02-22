@@ -67,6 +67,10 @@ const size_t GSC_DST_CROP_W_ALIGNMENT_RGB888 = 32;
 #define SUPPORT_GSC_LOCAL_PATH
 #define HWC_DYNAMIC_RECOMPOSITION
 
+#define USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI
+#define EXYNOS5_HDMI_DEFAULT_WIDTH    1920
+#define EXYNOS5_HDMI_DEFAULT_HEIGHT   1080
+
 const size_t NUM_HW_WINDOWS = 5;
 const size_t NO_FB_NEEDED = NUM_HW_WINDOWS + 1;
 const size_t MAX_PIXELS = 2560 * 1600 * 2;
@@ -201,11 +205,11 @@ struct hdmi_layer_t {
     size_t  queued_buf;
 };
 
-#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USES_WFD)
+#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USES_WFD) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
 #include "FimgApi.h"
 #endif
 
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
+#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
 #define HWC_SKIP_HDMI_RENDERING 0x80000000
 
 const size_t NUM_COMPOSITE_BUFFER_FOR_EXTERNAL = 4;
@@ -354,7 +358,7 @@ struct exynos5_hwc_composer_device_1_t {
     int                     hdmi_video_rotation;    /* HAL_TRANSFORM_ROT_XXX */
     bool                    external_display_pause;
     bool                    local_external_display_pause;
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
+#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
     bool                    use_blocking_layer;
     int                     num_of_ext_disp_layer;
     int                     num_of_ext_disp_video_layer;

@@ -549,7 +549,7 @@ static bool exynos5_blending_is_supported(int32_t blending)
     return exynos5_blending_to_s3c_blending(blending) < S3C_FB_BLENDING_MAX;
 }
 
-#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USES_WFD)
+#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USES_WFD) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
 static inline rotation rotateValueHAL2G2D(unsigned char transform)
 {
     int rotate_flag = transform & 0x7;
@@ -682,10 +682,8 @@ int runCompositor(exynos5_hwc_composer_device_1_t *pdev,
         w = pdev->hdmi_w;
         h = pdev->hdmi_h;
     }
-    dstImgRect = {src_layer.displayFrame.left, src_layer.displayFrame.top,
-            WIDTH(src_layer.displayFrame), HEIGHT(src_layer.displayFrame),
-            w, h,
-            dst_handle->format};
+
+    dstImgRect = {0, 0, w, h, w, h, dst_handle->format};
 
     g2d_rotation = rotateValueHAL2G2D(transform);
 
@@ -811,7 +809,7 @@ int runCompositor(exynos5_hwc_composer_device_1_t *pdev,
 }
 #endif
 
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
+#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
 static unsigned long get_mapped_addr_fb_target(exynos5_hwc_composer_device_1_t *pdev, int fd)
 {
     for (int i = 0; i < NUM_FB_TARGET; i++) {
@@ -820,8 +818,9 @@ static unsigned long get_mapped_addr_fb_target(exynos5_hwc_composer_device_1_t *
 
         if (pdev->fb_target_info[i].fd == -1) {
             pdev->fb_target_info[i].fd = fd;
-            pdev->fb_target_info[i].mapped_addr = (unsigned long)ion_map(fd, pdev->hdmi_w * pdev->hdmi_h * 4, 0);
-            pdev->fb_target_info[i].map_size = pdev->hdmi_w * pdev->hdmi_h * 4;
+            pdev->fb_target_info[i].mapped_addr = (unsigned long)ion_map(fd, pdev->xres * pdev->yres * 4, 0);
+            pdev->fb_target_info[i].map_size = pdev->xres * pdev->yres * 4;
+
             return pdev->fb_target_info[i].mapped_addr;
         }
     }
@@ -1038,7 +1037,7 @@ static void hdmi_disable(struct exynos5_hwc_composer_device_1_t *dev)
     hdmi_disable_layer(dev, dev->hdmi_layers[1]);
 
     exynos5_cleanup_gsc_m2m(dev, HDMI_GSC_IDX);
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
+#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
     for (size_t i = 0; i < NUM_COMPOSITE_BUFFER_FOR_EXTERNAL; i++) {
         ion_unmap((void *)dev->va_composite_buffer_for_external[i],
                 dev->composite_buf_width * dev->composite_buf_height * 4);
@@ -3137,7 +3136,7 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
     hwc_layer_1_t *fb_layer = NULL;
     hwc_layer_1_t *video_layer = NULL;
 
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
+#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
     buffer_handle_t *dst_buf;
     bool use_composite_buffer_for_external = false;
     bool need_clear_composite_buffer = true;
@@ -3341,9 +3340,29 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
             ALOGV("HDMI FB layer:");
             dump_layer(&layer);
 
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
+#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
+
+            /*
+             * in case of 1080P30,  memcpy to tempbuffer, and then render that
+             * in case of not default hdmi resoultion, after scaling down, and then render
+             * G2D not support sync fence, so we should guarante to finish G3D composition,
+             */
+#if defined(USE_GRALLOC_FLAG_FOR_HDMI) && defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
+            if ((pdev->mHdmiCurrentPreset == V4L2_DV_1080P30) ||
+                ((pdev->hdmi_w != EXYNOS5_HDMI_DEFAULT_WIDTH) || (pdev->hdmi_h != EXYNOS5_HDMI_DEFAULT_HEIGHT))) {
+#endif
+#ifndef USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI
             if (pdev->mHdmiCurrentPreset == V4L2_DV_1080P30) {
-                /* in case of 1080P30,  memcpy to tempbuffer, and then render that */
+#endif
+#ifndef USE_GRALLOC_FLAG_FOR_HDMI
+            if ((pdev->hdmi_w != EXYNOS5_HDMI_DEFAULT_WIDTH) || (pdev->hdmi_h != EXYNOS5_HDMI_DEFAULT_HEIGHT)) {
+#endif
+                if (layer.acquireFenceFd >= 0) {
+                    sync_wait(layer.acquireFenceFd, 1000);
+                    close(layer.acquireFenceFd);
+                    layer.acquireFenceFd = -1;
+                }
+
                 dst_buf = exynos5_external_layer_composite(pdev, layer, pdev->composite_buf_index, false);
                 layer.releaseFenceFd = layer.acquireFenceFd;
                 private_handle_t *dst_h = private_handle_t::dynamicCast(*dst_buf);
@@ -3353,21 +3372,21 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                 dst_layer.displayFrame.top = 0;
                 dst_layer.displayFrame.bottom = pdev->hdmi_h;
 
-                hdmi_output(pdev, pdev->hdmi_layers[1], dst_layer, dst_h, -1, NULL);
+                hdmi_output(pdev, pdev->hdmi_layers[1], dst_layer, dst_h, layer.acquireFenceFd, NULL);
                 use_composite_buffer_for_external = true;
             } else {
 #endif
                 private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
                 hdmi_output(pdev, pdev->hdmi_layers[1], layer, h, layer.acquireFenceFd,
                             &layer.releaseFenceFd);
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
+#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
             }
 #endif
             fb_layer = &layer;
         }
     }
 
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
+#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
     if (use_composite_buffer_for_external) {
         pdev->composite_buf_index++;
         if (pdev->composite_buf_index == NUM_COMPOSITE_BUFFER_FOR_EXTERNAL)
@@ -3497,7 +3516,6 @@ static int exynos5_set(struct hwc_composer_device_1 *dev,
     if (hdmi_contents && pdev->hdmi_enabled) {
         hdmi_err = exynos5_set_hdmi(pdev, hdmi_contents);
     }
-#if 0
 #if defined(HWC_SERVICES)
 #if defined(S3D_SUPPORT)
     if (pdev->mS3DMode != S3D_MODE_STOPPING && !pdev->mHdmiResolutionHandled) {
@@ -3523,7 +3541,6 @@ static int exynos5_set(struct hwc_composer_device_1 *dev,
 #if defined(S3D_SUPPORT)
     if (pdev->mS3DMode == S3D_MODE_STOPPING)
         pdev->mS3DMode = S3D_MODE_DISABLED;
-#endif
 #endif
 #endif
 
@@ -4036,10 +4053,10 @@ static int32_t exynos5_hdmi_attribute(struct exynos5_hwc_composer_device_1_t *pd
         return pdev->vsync_period;
 
     case HWC_DISPLAY_WIDTH:
-        return pdev->hdmi_w;
+        return pdev->xres;
 
     case HWC_DISPLAY_HEIGHT:
-        return pdev->hdmi_h;
+        return pdev->yres;
 
     case HWC_DISPLAY_DPI_X:
         return pdev->xdpi;
@@ -4300,7 +4317,7 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
     dev->hdmi_video_rotation = 0;
     dev->external_display_pause = false;
     dev->local_external_display_pause = false;
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
+#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
     dev->use_blocking_layer = false;
     dev->composite_buf_index = 0;
 
@@ -4421,7 +4438,7 @@ static int exynos5_close(hw_device_t *device)
 #ifdef USES_WFD
     wfd_disable(dev);
 #endif
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
+#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
     for (size_t i = 0; i < NUM_COMPOSITE_BUFFER_FOR_EXTERNAL; i++) {
         ion_unmap((void *)dev->va_composite_buffer_for_external[i],
                 dev->composite_buf_width * dev->composite_buf_height * 4);

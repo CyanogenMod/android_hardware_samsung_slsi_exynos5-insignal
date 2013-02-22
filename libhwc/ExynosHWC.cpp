@@ -1773,7 +1773,8 @@ retry:
 #else
                 pdev->totPixels += WIDTH(layer.displayFrame) * HEIGHT(layer.displayFrame);
                 if (exynos5_supports_overlay(contents->hwLayers[i], i, pdev) &&
-                        !force_fb && (pdev->CompModeSwitch != HWC_2_GLES)) {
+                        !force_fb && ((pdev->CompModeSwitch != HWC_2_GLES) ||
+                        (exynos5_get_drmMode(handle->flags) != NO_DRM))) {
 #endif
                     ALOGV("\tlayer %u: overlay supported", i);
                     layer.compositionType = HWC_OVERLAY;

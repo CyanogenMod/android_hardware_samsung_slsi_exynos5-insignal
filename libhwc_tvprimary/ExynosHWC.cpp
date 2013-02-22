@@ -1194,10 +1194,8 @@ void hdmi_set_preset(exynos5_hwc_composer_device_1_t *pdev, int preset)
     v4l2_dv_preset v_preset;
     v_preset.preset = preset;
     hdmi_disable(pdev);
-    if (ioctl(pdev->hdmi_layers[0].fd, VIDIOC_S_DV_PRESET, &v_preset) != -1) {
-        if (pdev->procs)
-            pdev->procs->hotplug(pdev->procs, HWC_DISPLAY_EXTERNAL, false);
-    }
+    if (ioctl(pdev->hdmi_layers[0].fd, VIDIOC_S_DV_PRESET, &v_preset) < 0)
+        ALOGE("%s: s_dv_preset error, %d", __func__, errno);
 }
 
 int hdmi_3d_to_2d(int preset)
@@ -3525,10 +3523,8 @@ static int exynos5_set(struct hwc_composer_device_1 *dev,
         pdev->mHdmiResolutionHandled = true;
         pdev->hdmi_hpd = true;
         hdmi_enable(pdev);
-        if (pdev->procs) {
-            pdev->procs->hotplug(pdev->procs, HWC_DISPLAY_EXTERNAL, true);
+        if (pdev->procs)
             pdev->procs->invalidate(pdev->procs);
-        }
     }
     if (pdev->hdmi_hpd && pdev->mHdmiResolutionChanged) {
 #if defined(S3D_SUPPORT)

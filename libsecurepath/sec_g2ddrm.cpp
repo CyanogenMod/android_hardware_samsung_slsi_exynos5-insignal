@@ -183,6 +183,17 @@ extern "C" g2ddrmResult_t G2DDRM_Blit(struct fimg2d_blit_raw *cmd)
 		}
 		cmd->dst.addr.start = secfd.phys;
 
+		LOG_I("Check TCI buffer");
+		// Check TCI buffer.
+		tci = ctx.tci_msg;
+		if (NULL == tci) {
+			LOG_E("TCI has not been set up properly - exiting");
+			ret = G2DDRM_ERROR_INIT_FAILED;
+			close(g_fd_secmem);
+			break;
+		}
+		LOG_I("Prepare command message in TCI");
+
 		tci->cmd.id = CMD_G2DDRM_BLIT;
 		tci->blit.op = cmd->op;
 		tci->blit.param = cmd->param;

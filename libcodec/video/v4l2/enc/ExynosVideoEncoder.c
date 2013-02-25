@@ -2219,6 +2219,11 @@ static ExynosVideoErrorType MFC_Encoder_ExtensionEnqueue_Inbuf(
         pCtx->pInbuf[buf.index].planes[i].allocSize = allocLen[i];
     }
 
+    signed long long sec = (((OMX_BUFFERHEADERTYPE *)pPrivate)->nTimeStamp / 1E6);
+    signed long long usec = (((OMX_BUFFERHEADERTYPE *)pPrivate)->nTimeStamp) - (sec * 1E6);
+    buf.timestamp.tv_sec = (long)sec;
+    buf.timestamp.tv_usec = (long)usec;
+
     if (exynos_v4l2_qbuf(pCtx->hEnc, &buf) != 0) {
         ALOGE("%s: Failed to enqueue input buffer", __func__);
         pthread_mutex_lock(pMutex);

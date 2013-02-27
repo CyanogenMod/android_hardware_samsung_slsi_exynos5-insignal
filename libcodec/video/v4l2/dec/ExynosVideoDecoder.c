@@ -1525,6 +1525,11 @@ static ExynosVideoErrorType MFC_Decoder_Enqueue_Inbuf(
             buf.m.planes[i].bytesused = dataSize[i];
     }
 
+    if ((((OMX_BUFFERHEADERTYPE *)pPrivate)->nFlags & OMX_BUFFERFLAG_EOS) == OMX_BUFFERFLAG_EOS) {
+        buf.input = LAST_FRAME;
+        ALOGD("%s: OMX_BUFFERFLAG_EOS => LAST_FRAME: 0x%x", __func__, buf.input);
+    }
+
     signed long long sec  = (((OMX_BUFFERHEADERTYPE *)pPrivate)->nTimeStamp / 1E6);
     signed long long usec = (((OMX_BUFFERHEADERTYPE *)pPrivate)->nTimeStamp) - (sec * 1E6);
     buf.timestamp.tv_sec  = (long)sec;

@@ -22,6 +22,7 @@
 
 /* Fixed */
 #define VIDEO_BUFFER_MAX_PLANES 3
+#define LAST_FRAME     0x80000000
 
 typedef enum _ExynosVideoBoolType {
     VIDEO_FALSE = 0,

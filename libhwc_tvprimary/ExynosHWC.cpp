@@ -3483,11 +3483,13 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 #ifndef USE_GRALLOC_FLAG_FOR_HDMI
             if ((pdev->hdmi_w != EXYNOS5_HDMI_DEFAULT_WIDTH) || (pdev->hdmi_h != EXYNOS5_HDMI_DEFAULT_HEIGHT)) {
 #endif
+ #ifdef FBTARGET_SYNC_WAITING
                 if (layer.acquireFenceFd >= 0) {
                     sync_wait(layer.acquireFenceFd, 1000);
                     close(layer.acquireFenceFd);
                     layer.acquireFenceFd = -1;
                 }
+#endif
 
                 dst_buf = exynos5_external_layer_composite(pdev, layer, pdev->composite_buf_index, false);
                 layer.releaseFenceFd = layer.acquireFenceFd;
@@ -3606,6 +3608,13 @@ static int exynos5_set_wfd(exynos5_hwc_composer_device_1_t *pdev,
             if (!layer.handle)
                 continue;
 
+#ifdef FBTARGET_SYNC_WAITING
+            if (layer.acquireFenceFd >= 0) {
+                sync_wait(layer.acquireFenceFd, 1000);
+                close(layer.acquireFenceFd);
+                layer.acquireFenceFd = -1;
+            }
+#endif
             ALOGV("WFD FB target layer:");
             dump_layer(&layer);
 

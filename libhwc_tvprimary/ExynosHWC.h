@@ -66,6 +66,7 @@ const size_t GSC_DST_CROP_W_ALIGNMENT_RGB888 = 32;
 #define MIXER_UPDATE
 #define SUPPORT_GSC_LOCAL_PATH
 #define HWC_DYNAMIC_RECOMPOSITION
+#define USE_NORMAL_DRM
 
 #define USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI
 #define EXYNOS5_HDMI_DEFAULT_WIDTH    1920
@@ -362,7 +363,8 @@ struct exynos5_hwc_composer_device_1_t {
     int                     hdmi_video_rotation;    /* HAL_TRANSFORM_ROT_XXX */
     bool                    external_display_pause;
     bool                    local_external_display_pause;
-    bool                    popup_play_drm_contents;	
+    bool                    popup_play_drm_contents;
+    int                     num_of_protected_layer;
 #if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
     bool                    use_blocking_layer;
     int                     num_of_ext_disp_layer;

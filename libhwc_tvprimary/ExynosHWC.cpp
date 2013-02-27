@@ -2222,6 +2222,7 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 #endif
 
     pdev->force_mirror_mode = false;
+    pdev->num_of_protected_layer = 0;
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
     pdev->use_blocking_layer = false;
     pdev->num_of_ext_disp_layer = 0;
@@ -2262,6 +2263,8 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                     pdev->num_of_ext_vfb_layer++;
                 }
             }
+            if (h->flags & GRALLOC_USAGE_PROTECTED)
+                pdev->num_of_protected_layer++;
             if (h->flags & GRALLOC_USAGE_EXTERNAL_BLOCK)
                 pdev->use_blocking_layer = true;
         }
@@ -2302,7 +2305,9 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
             /* IF MIRROR mode, all surfaces use G3D composition */
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
             else if (pdev->force_mirror_mode) {
-                if (h->flags & GRALLOC_USAGE_INTERNAL_ONLY) {
+                if (exynos5_get_drmMode(h->flags) != NO_DRM) {
+                    layer.compositionType = HWC_OVERLAY;
+                } else if (h->flags & GRALLOC_USAGE_INTERNAL_ONLY) {
                     layer.compositionType = HWC_OVERLAY;
                     layer.flags = HWC_SKIP_HDMI_RENDERING;
                 } else {
@@ -2385,7 +2390,7 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                     if (((exynos5_get_drmMode(h->flags) == SECURE_DRM) || (h->flags & GRALLOC_USAGE_EXTERNAL_DISP)) &&
                         exynos5_supports_gscaler(layer, h->format, false)) {
 #else
-                    if (exynos5_get_drmMode(h->flags) == SECURE_DRM) {
+                    if (exynos5_get_drmMode(h->flags) != NO_DRM) {
 #endif
 #if !defined(GSC_VIDEO)
                             if (!video_layer) {
@@ -3330,7 +3335,7 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 #if defined(GSC_VIDEO)
             if ((exynos5_get_drmMode(h->flags) == SECURE_DRM) || (h->flags & GRALLOC_USAGE_EXTERNAL_DISP)) {
 #else
-            if (exynos5_get_drmMode(h->flags) == SECURE_DRM) {
+            if (exynos5_get_drmMode(h->flags) != NO_DRM) {
 #endif
                 exynos5_gsc_data_t &gsc = pdev->gsc[HDMI_GSC_IDX];
                 int ret = exynos5_config_gsc_m2m(layer, pdev, &gsc,

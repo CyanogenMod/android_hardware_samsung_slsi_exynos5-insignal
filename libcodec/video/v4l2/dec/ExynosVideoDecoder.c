@@ -29,6 +29,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <fcntl.h>
+#include <errno.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -1685,6 +1686,7 @@ static ExynosVideoBuffer *MFC_Decoder_Dequeue_Outbuf(void *pHandle)
 
     struct v4l2_buffer buf;
     int value = 0, state = 0;
+    int ret = 0;
 
     if (pCtx == NULL) {
         ALOGE("%s: Video context info must be supplied", __func__);
@@ -1705,8 +1707,12 @@ static ExynosVideoBuffer *MFC_Decoder_Dequeue_Outbuf(void *pHandle)
         buf.memory = V4L2_MEMORY_MMAP;
 
     /* HACK: pOutbuf return -1 means DECODING_ONLY for almost cases */
-    if (exynos_v4l2_dqbuf(pCtx->hDec, &buf) != 0) {
-        pOutbuf = NULL;
+    ret = exynos_v4l2_dqbuf(pCtx->hDec, &buf);
+    if (ret != 0) {
+        if (errno == EIO)
+            pOutbuf = (ExynosVideoBuffer *)VIDEO_ERROR_DQBUF_EIO;
+        else
+            pOutbuf = NULL;
         goto EXIT;
     }
 

@@ -38,6 +38,7 @@ typedef enum _ExynosVideoErrorType {
     VIDEO_ERROR_MAPFAIL   = -5,
     VIDEO_ERROR_NOBUFFERS = -6,
     VIDEO_ERROR_POLL      = -7,
+    VIDEO_ERROR_DQBUF_EIO = -8,
 } ExynosVideoErrorType;
 
 typedef enum _ExynosVideoCodingType {

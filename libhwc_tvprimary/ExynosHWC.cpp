@@ -2634,6 +2634,17 @@ static int exynos5_prepare(hwc_composer_device_1_t *dev,
     pdev->totPixels = 0;
 #endif
 
+#ifdef USES_WFD
+    if (pdev->wfd_hpd && pdev->wfd_enabled) {
+       if (hdmi_contents && wfd_contents) {
+            if (wfd_contents->numHwLayers != 1) {
+                hdmi_contents = displays[HWC_DISPLAY_EXTERNAL];
+                wfd_contents = displays[HWC_DISPLAY_PRIMARY];
+            }
+        }
+     }
+#endif
+
     if (pdev->hdmi_hpd) {
         hdmi_enable(pdev);
     } else {
@@ -2854,6 +2865,7 @@ static int exynos5_config_gsc_m2m(hwc_layer_1_t &layer,
         dst_cfg.fw = dst_handle->stride;
         dst_cfg.fh = dst_handle->vstride;
     }
+
     dst_cfg.yaddr = dst_handle->fd;
 #ifdef USES_WFD
     if (dst_format == EXYNOS5_WFD_FORMAT)
@@ -3724,6 +3736,17 @@ static int exynos5_set(struct hwc_composer_device_1 *dev,
     pdev->setCallCnt++;
 #endif
 
+#ifdef USES_WFD
+    if (pdev->wfd_hpd && pdev->wfd_enabled) {
+       if (hdmi_contents && wfd_contents) {
+            if (wfd_contents->numHwLayers != 1) {
+                hdmi_contents = displays[HWC_DISPLAY_EXTERNAL];
+                wfd_contents = displays[HWC_DISPLAY_PRIMARY];
+            }
+        }
+     }
+#endif
+
     if (fimd_contents)
         fimd_err = exynos5_set_fimd(pdev, fimd_contents);
 
@@ -4291,10 +4314,10 @@ static int32_t exynos5_wfd_attribute(struct exynos5_hwc_composer_device_1_t *pde
         return pdev->vsync_period;
 
     case HWC_DISPLAY_WIDTH:
-        return pdev->wfd_w;
+        return pdev->hdmi_w; //current TV resolution
 
     case HWC_DISPLAY_HEIGHT:
-        return pdev->wfd_h;
+        return pdev->hdmi_h; //current TV resolutuion
 
     case HWC_DISPLAY_DPI_X:
         return pdev->xdpi;

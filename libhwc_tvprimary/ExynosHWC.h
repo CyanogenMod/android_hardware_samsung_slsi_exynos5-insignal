@@ -401,6 +401,7 @@ struct exynos5_hwc_composer_device_1_t {
     int                     virtual_ovly_flag_hdmi;
 #endif
 
+    hwc_layer_1_t temp_hdmi_video_layer; //for drm play on low resolution
 };
 
 #if defined(HWC_SERVICES)

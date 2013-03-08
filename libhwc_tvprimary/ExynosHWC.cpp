@@ -92,6 +92,32 @@ template<typename T> void align_crop_and_center(T &w, T &h,
     }
 }
 
+static void reconfig_dst_crop(hwc_rect_t *org_crop,
+        hwc_rect_t *mod_crop, size_t alignment, int cur_hdmi_w, int cur_hdmi_h)
+{
+
+    double width_aspect = 1.0 * cur_hdmi_w / EXYNOS5_HDMI_DEFAULT_WIDTH;
+    double height_aspect = 1.0 * cur_hdmi_h / EXYNOS5_HDMI_DEFAULT_HEIGHT;
+    int w = org_crop->right - org_crop->left;
+    int h = org_crop->bottom - org_crop->top;
+    int x = org_crop->left;
+    int y = org_crop->top;
+    if (x > 0)
+        x= round(width_aspect * x);
+    if (y > 0)
+        y= round(height_aspect * y);
+    w = round(width_aspect * w);
+    h = round(height_aspect * h);
+
+    w = ALIGN(w, alignment);
+    if (mod_crop) {
+        mod_crop->left = x;
+        mod_crop->top = y;
+        mod_crop->right = mod_crop->left + w;
+        mod_crop->bottom = mod_crop->top + h;
+    }
+}
+
 static bool is_transformed(const hwc_layer_1_t &layer)
 {
     return layer.transform != 0;
@@ -1081,10 +1107,29 @@ static int hdmi_output(struct exynos5_hwc_composer_device_1_t *dev,
 
     exynos_gsc_img cfg;
     memset(&cfg, 0, sizeof(cfg));
-    cfg.x = layer.displayFrame.left;
-    cfg.y = layer.displayFrame.top;
-    cfg.w = WIDTH(layer.displayFrame);
-    cfg.h = HEIGHT(layer.displayFrame);
+
+    if (hl.id == 0) {
+        /* if current hdmi resolution is different with primary display's resoultion,
+         * destination display frame's position should be changed for drm video play.
+         */
+        if ((dev->hdmi_w != EXYNOS5_HDMI_DEFAULT_WIDTH) ||
+            (dev->hdmi_h != EXYNOS5_HDMI_DEFAULT_HEIGHT)) {
+            cfg.x = dev->temp_hdmi_video_layer.displayFrame.left;
+            cfg.y = dev->temp_hdmi_video_layer.displayFrame.top;
+            cfg.w = WIDTH(dev->temp_hdmi_video_layer.displayFrame);
+            cfg.h = HEIGHT(dev->temp_hdmi_video_layer.displayFrame);
+        } else {
+            cfg.x = layer.displayFrame.left;
+            cfg.y = layer.displayFrame.top;
+            cfg.w = WIDTH(layer.displayFrame);
+            cfg.h = HEIGHT(layer.displayFrame);
+        }
+    } else {
+        cfg.x = layer.displayFrame.left;
+        cfg.y = layer.displayFrame.top;
+        cfg.w = WIDTH(layer.displayFrame);
+        cfg.h = HEIGHT(layer.displayFrame);
+    }
 
     if (gsc_src_cfg_changed(hl.cfg, cfg) || dev->fb_started || dev->video_started) {
         struct v4l2_subdev_crop sd_crop;
@@ -3338,6 +3383,25 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
             if (exynos5_get_drmMode(h->flags) != NO_DRM) {
 #endif
                 exynos5_gsc_data_t &gsc = pdev->gsc[HDMI_GSC_IDX];
+
+                /* if current hdmi resolution is different with primary display's resoultion,
+                 * destination display frame's position should be changed for drm video play.
+                 */
+                if ((pdev->hdmi_w != EXYNOS5_HDMI_DEFAULT_WIDTH) ||
+                    (pdev->hdmi_h != EXYNOS5_HDMI_DEFAULT_HEIGHT)) {
+                    hwc_rect_t org_Crop = { layer.displayFrame.left, layer.displayFrame.top,
+                        layer.displayFrame.right, layer.displayFrame.bottom};
+                    hwc_rect_t mod_Crop = { 0, 0, 0, 0};
+
+                    reconfig_dst_crop(&org_Crop, &mod_Crop,
+                        GSC_DST_CROP_W_ALIGNMENT_RGB888, pdev->hdmi_w, pdev->hdmi_h);
+
+                    pdev->temp_hdmi_video_layer.displayFrame.left = mod_Crop.left;
+                    pdev->temp_hdmi_video_layer.displayFrame.top = mod_Crop.top;
+                    pdev->temp_hdmi_video_layer.displayFrame.right = mod_Crop.right;
+                    pdev->temp_hdmi_video_layer.displayFrame.bottom = mod_Crop.bottom;
+                }
+
                 int ret = exynos5_config_gsc_m2m(layer, pdev, &gsc,
                                                  gsc_idx,
                                                  HAL_PIXEL_FORMAT_RGBX_8888, NULL);

@@ -57,6 +57,10 @@ ifeq ($(BOARD_HDMI_INCAPABLE), true)
 	LOCAL_CFLAGS += -DHDMI_INCAPABLE
 endif
 
+ifeq ($(BOARD_USE_NORMAL_DRM), true)
+	LOCAL_CFLAGS += -DUSE_NORMAL_DRM
+endif
+
 LOCAL_CFLAGS += -DLOG_TAG=\"hwcomposer\"
 
 LOCAL_C_INCLUDES := \

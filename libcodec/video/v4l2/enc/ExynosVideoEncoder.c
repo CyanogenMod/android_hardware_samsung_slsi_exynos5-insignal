@@ -303,7 +303,7 @@ static ExynosVideoErrorType MFC_Encoder_Set_EncParam (
     ext_ctrl[0].id = V4L2_CID_MPEG_VIDEO_GOP_SIZE;
     ext_ctrl[0].value = pCommonParam->IDRPeriod;
     ext_ctrl[1].id = V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MODE;
-    ext_ctrl[1].value = pCommonParam->SliceMode;  /* 0: one, 1: fixed #mb, 3: fixed #bytes */
+    ext_ctrl[1].value = pCommonParam->SliceMode;  /* 0: one, 1: fixed #mb, 2: fixed #bytes */
     ext_ctrl[2].id = V4L2_CID_MPEG_VIDEO_CYCLIC_INTRA_REFRESH_MB;
     ext_ctrl[2].value = pCommonParam->RandomIntraMBRefresh;
     ext_ctrl[3].id = V4L2_CID_MPEG_MFC51_VIDEO_PADDING;
@@ -356,7 +356,7 @@ static ExynosVideoErrorType MFC_Encoder_Set_EncParam (
             ext_ctrl[14].id = V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_BYTES;
             ext_ctrl[14].value = 2800; /* based on MFC6.x */
             break;
-        case 3:
+        case 2:
             ext_ctrl[13].id = V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_MB;
             ext_ctrl[13].value = 1; /* default */
             ext_ctrl[14].id = V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_BYTES;
@@ -520,7 +520,7 @@ static ExynosVideoErrorType MFC_Encoder_Set_EncParam (
             ext_ctrl[14].id = V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_BYTES;
             ext_ctrl[14].value = 2800; /* based on MFC6.x */
             break;
-        case 3:
+        case 2:
             ext_ctrl[13].id = V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_MB;
             ext_ctrl[13].value = 1; /* default */
             ext_ctrl[14].id = V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_BYTES;
@@ -2218,6 +2218,11 @@ static ExynosVideoErrorType MFC_Encoder_ExtensionEnqueue_Inbuf(
         pCtx->pInbuf[buf.index].planes[i].fd = (unsigned int)pFd[i];
         pCtx->pInbuf[buf.index].planes[i].allocSize = allocLen[i];
     }
+
+    signed long long sec = (((OMX_BUFFERHEADERTYPE *)pPrivate)->nTimeStamp / 1E6);
+    signed long long usec = (((OMX_BUFFERHEADERTYPE *)pPrivate)->nTimeStamp) - (sec * 1E6);
+    buf.timestamp.tv_sec = (long)sec;
+    buf.timestamp.tv_usec = (long)usec;
 
     if (exynos_v4l2_qbuf(pCtx->hEnc, &buf) != 0) {
         ALOGE("%s: Failed to enqueue input buffer", __func__);

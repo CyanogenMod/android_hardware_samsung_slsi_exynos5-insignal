@@ -337,7 +337,7 @@ static int m_exynos_rotator_create(void)
     unsigned int cap;
     char         node[32];
 
-    sprintf(node, "%s%d", PFX_NODE_ROTATOR, NODE_NUM_ROTATOR);
+    snprintf(node, sizeof(node), "%s%d", PFX_NODE_ROTATOR, NODE_NUM_ROTATOR);
     fd = exynos_v4l2_open(node, O_RDWR);
     if (fd < 0) {
         ALOGE("%s::exynos_v4l2_open(%s) fail", __func__, node);
@@ -466,10 +466,10 @@ static bool m_exynos_rotator_set_format(
             return false;
         }
 
-        if (info->crop_left   != info->crop.c.left ||
-            info->crop_top    != info->crop.c.top ||
-            info->crop_width  != info->crop.c.width ||
-            info->crop_height != info->crop.c.height) {
+        if (info->crop_left   != (unsigned int)info->crop.c.left ||
+            info->crop_top    != (unsigned int)info->crop.c.top ||
+            info->crop_width  != (unsigned int)info->crop.c.width ||
+            info->crop_height != (unsigned int)info->crop.c.height) {
             ALOGV("%s::crop is different..", __func__);
             goto set_hw;
         }
@@ -480,7 +480,7 @@ static bool m_exynos_rotator_set_format(
         int value = 0;
 
         if (exynos_v4l2_g_ctrl(fd, V4L2_CID_ROTATE, &value) < 0) {
-            ALOGE("%s::exynos_v4l2_g_ctrl(V4L2_CID_ROTATE) fail");
+            ALOGE("%s::exynos_v4l2_g_ctrl(V4L2_CID_ROTATE) fail", __func__);
             return false;
         }
 
@@ -606,7 +606,7 @@ void *exynos_rotator_create(void)
 
     srand(time(NULL));
     op_id = rand() % 1000000; // just make random id
-    sprintf(mutex_name, "%sOp%d", LOG_TAG, op_id);
+    snprintf(mutex_name, sizeof(mutex_name), "%sOp%d", LOG_TAG, op_id);
     rotator_handle->op_mutex = exynos_mutex_create(EXYNOS_MUTEX_TYPE_PRIVATE, mutex_name);
     if (rotator_handle->op_mutex == NULL) {
         ALOGE("%s::exynos_mutex_create(%s) fail", __func__, mutex_name);
@@ -615,7 +615,7 @@ void *exynos_rotator_create(void)
 
     exynos_mutex_lock(rotator_handle->op_mutex);
 
-    sprintf(mutex_name, "%sObject%d", LOG_TAG, i);
+    snprintf(mutex_name, sizeof(mutex_name), "%sObject%d", LOG_TAG, i);
 
     rotator_handle->obj_mutex = exynos_mutex_create(EXYNOS_MUTEX_TYPE_SHARED, mutex_name);
     if (rotator_handle->obj_mutex == NULL) {

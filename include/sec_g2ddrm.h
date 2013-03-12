@@ -14,22 +14,24 @@
  * limitations under the License.
  */
 
-#ifndef TLC_COMMUNICATION_H_
-#define TLC_COMMUNICATION_H_
+#ifndef __SEC_G2DDRM_H__
+#define __SEC_G2DDRM_H__
 
-#include "MobiCoreDriverApi.h"
-#include "tlsecdrm_api.h"
+__BEGIN_DECLS
 
-typedef struct {
-	uint32_t		device_id;
-	mcUuid_t		uuid;
-	mcSessionHandle_t	handle;
-	tciMessage_t		*tci_msg;
-	bool			initialized;
-} mc_comm_ctx;
+typedef enum {
+	G2DDRM_SUCCESS = 0,
+	G2DDRM_ERROR_INIT_FAILED,
+	G2DDRM_ERROR_EXIT_FAILED,
+	G2DDRM_ERROR_TCI_WSM_FAILED,
+	G2DDRM_ERROR_TCI_MAP_FAILED,
+	G2DDRM_ERROR_BLIT_FAILED,
+} g2ddrmResult_t;
 
-mcResult_t tlc_open(mc_comm_ctx *comm_ctx);
-mcResult_t tlc_close(mc_comm_ctx *comm_ctx);
-mcResult_t tlc_communicate(mc_comm_ctx *comm_ctx);
+g2ddrmResult_t G2DDRM_Initialize(void);
+g2ddrmResult_t G2DDRM_Blit(struct fimg2d_blit_raw *cmd);
+g2ddrmResult_t G2DDRM_Terminate(void);
+
+__END_DECLS
 
 #endif

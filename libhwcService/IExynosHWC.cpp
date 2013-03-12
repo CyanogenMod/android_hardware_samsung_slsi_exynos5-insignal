@@ -63,6 +63,7 @@ enum {
     GET_HDMI_CABLE_STATUS,
     GET_HDMI_RESOLUTION,
     GET_HDMI_AUDIO_CHANNEL,
+    SET_WFD_SLEEP_CTRL,
 };
 
 class BpExynosHWCService : public BpInterface<IExynosHWCService> {
@@ -82,15 +83,26 @@ public:
         return result;
     }
 
-    virtual int setWFDOutputResolution(unsigned int width, unsigned int height)
+    virtual int setWFDOutputResolution(unsigned int width, unsigned int height,
+                                       unsigned int disp_w, unsigned int disp_h)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
         data.writeInt32(width);
         data.writeInt32(height);
+        data.writeInt32(disp_w);
+        data.writeInt32(disp_h);
         int result = remote()->transact(SET_WFD_OUTPUT_RESOLUTION, data, &reply);
         result = reply.readInt32();
         return result;
+    }
+
+    virtual void setWFDSleepCtrl(bool black)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
+        data.writeInt32(black);
+        remote()->transact(SET_WFD_SLEEP_CTRL, data, &reply);
     }
 
     virtual int setExtraFBMode(unsigned int mode)
@@ -269,14 +281,23 @@ public:
         *height = reply.readInt32();
     }
 
-    virtual void getWFDOutputInfo(int *fd1, int *fd2, struct wfd_layer_t *wfd_info)
+    virtual int getWFDOutputInfo(int *fd1, int *fd2, struct wfd_layer_t *wfd_info)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
         remote()->transact(GET_WFD_OUTPUT_INFO, data, &reply);
-        *fd1 = dup(reply.readFileDescriptor());
-        *fd2 = dup(reply.readFileDescriptor());
-        reply.read(wfd_info, sizeof(wfd_info));
+        int y_fd  = reply.readFileDescriptor();
+        int uv_fd = reply.readFileDescriptor();
+        reply.read(wfd_info, sizeof(struct wfd_layer_t));
+
+        if (y_fd && uv_fd) {
+            *fd1 = dup(y_fd);
+            *fd2 = dup(uv_fd);
+        } else {
+            *fd1 = *fd2 = -1;
+        }
+
+        return reply.readInt32();
     }
 
     virtual int getPresentationMode(void)
@@ -331,8 +352,16 @@ status_t BnExynosHWCService::onTransact(
             CHECK_INTERFACE(IExynosHWCService, data, reply);
             int width  = data.readInt32();
             int height = data.readInt32();
-            int res = setWFDOutputResolution(width, height);
+            int disp_w = data.readInt32();
+            int disp_h = data.readInt32();
+            int res = setWFDOutputResolution(width, height, disp_w, disp_h);
             reply->writeInt32(res);
+            return NO_ERROR;
+        } break;
+        case SET_WFD_SLEEP_CTRL: {
+            CHECK_INTERFACE(IExynosHWCService, data, reply);
+            bool mode = data.readInt32();
+            setWFDSleepCtrl(mode);
             return NO_ERROR;
         } break;
         case SET_EXT_FB_MODE: {
@@ -485,10 +514,11 @@ status_t BnExynosHWCService::onTransact(
             CHECK_INTERFACE(IExynosHWCService, data, reply);
             int fd1, fd2;
             struct wfd_layer_t wfd_info;
-            getWFDOutputInfo(&fd1, &fd2, &wfd_info);
+            int res = getWFDOutputInfo(&fd1, &fd2, &wfd_info);
             reply->writeFileDescriptor(fd1);
             reply->writeFileDescriptor(fd2);
-            reply->write(&wfd_info, sizeof(wfd_info));
+            reply->write(&wfd_info, sizeof(struct wfd_layer_t));
+            reply->writeInt32(res);
             return NO_ERROR;
         } break;
         case GET_PRESENTATION_MODE: {

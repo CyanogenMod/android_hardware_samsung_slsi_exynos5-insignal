@@ -29,6 +29,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <fcntl.h>
+#include <errno.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -551,6 +552,29 @@ static ExynosVideoErrorType MFC_Decoder_Get_FramePackingInfo(
     pFramePacking->frame0_grid_pos_y = OPERATE_BIT(seiGridPos, 0xf, 4);
     pFramePacking->frame1_grid_pos_x = OPERATE_BIT(seiGridPos, 0xf, 8);
     pFramePacking->frame1_grid_pos_y = OPERATE_BIT(seiGridPos, 0xf, 12);
+
+EXIT:
+    return ret;
+}
+
+/*
+ * [Decoder OPS] Enable Decoding Timestamp Mode
+ */
+static ExynosVideoErrorType MFC_Decoder_Enable_DTSMode(void *pHandle)
+{
+    ExynosVideoDecContext *pCtx = (ExynosVideoDecContext *)pHandle;
+    ExynosVideoErrorType   ret  = VIDEO_ERROR_NONE;
+
+    if (pCtx == NULL) {
+        ALOGE("%s: Video context info must be supplied", __func__);
+        ret = VIDEO_ERROR_BADPARAM;
+        goto EXIT;
+    }
+
+    if (exynos_v4l2_s_ctrl(pCtx->hDec, V4L2_CID_MPEG_VIDEO_DECODER_DECODING_TIMESTAMP_MODE, 1) != 0) {
+        ret = VIDEO_ERROR_APIFAIL;
+        goto EXIT;
+    }
 
 EXIT:
     return ret;
@@ -1502,6 +1526,11 @@ static ExynosVideoErrorType MFC_Decoder_Enqueue_Inbuf(
             buf.m.planes[i].bytesused = dataSize[i];
     }
 
+    if ((((OMX_BUFFERHEADERTYPE *)pPrivate)->nFlags & OMX_BUFFERFLAG_EOS) == OMX_BUFFERFLAG_EOS) {
+        buf.input = LAST_FRAME;
+        ALOGD("%s: OMX_BUFFERFLAG_EOS => LAST_FRAME: 0x%x", __func__, buf.input);
+    }
+
     signed long long sec  = (((OMX_BUFFERHEADERTYPE *)pPrivate)->nTimeStamp / 1E6);
     signed long long usec = (((OMX_BUFFERHEADERTYPE *)pPrivate)->nTimeStamp) - (sec * 1E6);
     buf.timestamp.tv_sec  = (long)sec;
@@ -1657,6 +1686,7 @@ static ExynosVideoBuffer *MFC_Decoder_Dequeue_Outbuf(void *pHandle)
 
     struct v4l2_buffer buf;
     int value = 0, state = 0;
+    int ret = 0;
 
     if (pCtx == NULL) {
         ALOGE("%s: Video context info must be supplied", __func__);
@@ -1677,8 +1707,12 @@ static ExynosVideoBuffer *MFC_Decoder_Dequeue_Outbuf(void *pHandle)
         buf.memory = V4L2_MEMORY_MMAP;
 
     /* HACK: pOutbuf return -1 means DECODING_ONLY for almost cases */
-    if (exynos_v4l2_dqbuf(pCtx->hDec, &buf) != 0) {
-        pOutbuf = NULL;
+    ret = exynos_v4l2_dqbuf(pCtx->hDec, &buf);
+    if (ret != 0) {
+        if (errno == EIO)
+            pOutbuf = (ExynosVideoBuffer *)VIDEO_ERROR_DQBUF_EIO;
+        else
+            pOutbuf = NULL;
         goto EXIT;
     }
 
@@ -1865,6 +1899,36 @@ EXIT:
 }
 
 /*
+ * [Decoder Buffer OPS] Apply Registered Buffer (Output)
+ */
+static ExynosVideoErrorType MFC_Decoder_Apply_RegisteredBuffer_Outbuf(void *pHandle)
+{
+    ExynosVideoDecContext *pCtx = (ExynosVideoDecContext *)pHandle;
+    ExynosVideoErrorType   ret  = VIDEO_ERROR_NONE;
+
+    if (pCtx == NULL) {
+        ALOGE("%s: Video context info must be supplied", __func__);
+        ret = VIDEO_ERROR_BADPARAM;
+        goto EXIT;
+    }
+
+    if (exynos_v4l2_s_ctrl(pCtx->hDec, V4L2_CID_MPEG_VIDEO_DECODER_WAIT_DECODING_START, 1) != 0) {
+        ALOGW("%s: The requested function is not implemented", __func__);
+        ret = VIDEO_ERROR_APIFAIL;
+        //goto EXIT;    /* For Backward compatibility */
+    }
+
+    ret = MFC_Decoder_Run_Outbuf(pHandle);
+    if (VIDEO_ERROR_NONE != ret)
+        goto EXIT;
+
+    ret = MFC_Decoder_Stop_Outbuf(pHandle);
+
+EXIT:
+    return ret;
+}
+
+/*
  * [Decoder OPS] Common
  */
 static ExynosVideoDecOps defDecOps = {
@@ -1881,6 +1945,7 @@ static ExynosVideoDecOps defDecOps = {
     .Enable_SEIParsing      = MFC_Decoder_Enable_SEIParsing,
     .Get_FramePackingInfo   = MFC_Decoder_Get_FramePackingInfo,
     .Set_ImmediateDisplay   = MFC_Decoder_Set_ImmediateDisplay,
+    .Enable_DTSMode         = MFC_Decoder_Enable_DTSMode,
 };
 
 /*
@@ -1903,6 +1968,7 @@ static ExynosVideoDecBufferOps defInbufOps = {
     .Clear_RegisteredBuffer = MFC_Decoder_Clear_RegisteredBuffer_Inbuf,
     .Clear_Queue            = MFC_Decoder_Clear_Queued_Inbuf,
     .Cleanup_Buffer         = MFC_Decoder_Cleanup_Buffer_Inbuf,
+    .Apply_RegisteredBuffer = NULL,
 };
 
 /*
@@ -1925,6 +1991,7 @@ static ExynosVideoDecBufferOps defOutbufOps = {
     .Clear_RegisteredBuffer = MFC_Decoder_Clear_RegisteredBuffer_Outbuf,
     .Clear_Queue            = MFC_Decoder_Clear_Queued_Outbuf,
     .Cleanup_Buffer         = MFC_Decoder_Cleanup_Buffer_Outbuf,
+    .Apply_RegisteredBuffer = MFC_Decoder_Apply_RegisteredBuffer_Outbuf,
 };
 
 int Exynos_Video_Register_Decoder(

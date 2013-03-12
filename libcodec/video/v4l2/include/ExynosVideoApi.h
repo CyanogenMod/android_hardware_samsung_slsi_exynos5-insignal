@@ -22,6 +22,7 @@
 
 /* Fixed */
 #define VIDEO_BUFFER_MAX_PLANES 3
+#define LAST_FRAME     0x80000000
 
 typedef enum _ExynosVideoBoolType {
     VIDEO_FALSE = 0,
@@ -37,6 +38,7 @@ typedef enum _ExynosVideoErrorType {
     VIDEO_ERROR_MAPFAIL   = -5,
     VIDEO_ERROR_NOBUFFERS = -6,
     VIDEO_ERROR_POLL      = -7,
+    VIDEO_ERROR_DQBUF_EIO = -8,
 } ExynosVideoErrorType;
 
 typedef enum _ExynosVideoCodingType {
@@ -236,6 +238,7 @@ typedef struct _ExynosVideoDecOps {
     ExynosVideoErrorType  (*Enable_SEIParsing)(void *pHandle);
     ExynosVideoErrorType  (*Get_FramePackingInfo)(void *pHandle, ExynosVideoFramePacking *pFramepacking);
     ExynosVideoErrorType  (*Set_ImmediateDisplay)(void *pHandle);
+    ExynosVideoErrorType  (*Enable_DTSMode)(void *pHandle);
 } ExynosVideoDecOps;
 
 typedef struct _ExynosVideoEncOps {
@@ -274,6 +277,7 @@ typedef struct _ExynosVideoDecBufferOps {
     ExynosVideoErrorType  (*Clear_RegisteredBuffer)(void *pHandle);
     ExynosVideoErrorType  (*Clear_Queue)(void *pHandle);
     ExynosVideoErrorType  (*Cleanup_Buffer)(void *pHandle);
+    ExynosVideoErrorType  (*Apply_RegisteredBuffer)(void *pHandle);
 } ExynosVideoDecBufferOps;
 
 typedef struct _ExynosVideoEncBufferOps {

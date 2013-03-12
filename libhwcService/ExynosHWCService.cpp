@@ -38,11 +38,21 @@ ExynosHWCService::~ExynosHWCService()
 int ExynosHWCService::setWFDMode(unsigned int mode)
 {
     ALOGD_IF(HWC_SERVICE_DEBUG, "%s::mode=%d", __func__, mode);
+#ifdef TV_PRIMARY
+#ifdef USES_WFD
+    mHWCCtx->wfd_hpd = !!mode;
+    mHWCCtx->procs->invalidate(mHWCCtx->procs);
 
+    return NO_ERROR;
+#else
+    return INVALID_OPERATION;
+#endif
+#else
 #ifdef USES_WFD
     if (mHWCCtx->hdmi_hpd != true) {
         mHWCCtx->wfd_hpd = !!mode;
         mHWCCtx->procs->invalidate(mHWCCtx->procs);
+        mHWCCtx->wfd_sleepctrl = true;
     } else {
         /* HDMI and WFD runs exclusively */
         ALOGE_IF(HWC_SERVICE_DEBUG, "External Display was already enabled as HDMI.");
@@ -53,18 +63,30 @@ int ExynosHWCService::setWFDMode(unsigned int mode)
 #else
     return INVALID_OPERATION;
 #endif
+#endif
 }
 
-int ExynosHWCService::setWFDOutputResolution(unsigned int width, unsigned int height)
+int ExynosHWCService::setWFDOutputResolution(unsigned int width, unsigned int height,
+                                             unsigned int disp_w, unsigned int disp_h)
 {
     ALOGD_IF(HWC_SERVICE_DEBUG, "%s::width=%d, height=%d", __func__, width, height);
 
 #ifdef USES_WFD
     mHWCCtx->wfd_w = width;
     mHWCCtx->wfd_h = height;
+    mHWCCtx->wfd_disp_w = disp_w;
+    mHWCCtx->wfd_disp_h = disp_h;
     return NO_ERROR;
 #else
     return INVALID_OPERATION;
+#endif
+}
+
+void ExynosHWCService::setWFDSleepCtrl(bool black)
+{
+#ifdef USES_WFD
+    if (mHWCCtx->wfd_enabled)
+        mHWCCtx->wfd_sleepctrl = !!black;
 #endif
 }
 
@@ -273,7 +295,7 @@ int ExynosHWCService::getWFDMode()
 void ExynosHWCService::getWFDOutputResolution(unsigned int *width, unsigned int *height)
 {
 #ifdef USES_WFD
-    *width  = mHWCCtx->wfd_w;
+    *width  = ALIGN(mHWCCtx->wfd_w, EXYNOS5_WFD_OUTPUT_ALIGNMENT);
     *height = mHWCCtx->wfd_h;
 #else
     *width  = 0;
@@ -281,18 +303,25 @@ void ExynosHWCService::getWFDOutputResolution(unsigned int *width, unsigned int 
 #endif
 }
 
-void ExynosHWCService::getWFDOutputInfo(int *fd1, int *fd2, struct wfd_layer_t *wfd_info)
+int ExynosHWCService::getWFDOutputInfo(int *fd1, int *fd2, struct wfd_layer_t *wfd_info)
 {
 #ifdef USES_WFD
-    if (mHWCCtx->wfd_enabled) {
+    if (mHWCCtx->wfd_buf_fd[0] && mHWCCtx->wfd_buf_fd[1]) {
         *fd1 = mHWCCtx->wfd_locked_fd = mHWCCtx->wfd_buf_fd[0];
         *fd2 = mHWCCtx->wfd_buf_fd[1];
-        wfd_info = &mHWCCtx->wfd_info;
+        memcpy(wfd_info, &mHWCCtx->wfd_info, sizeof(struct wfd_layer_t));
+        return NO_ERROR;
     } else {
-        *fd1 = -1;
-        *fd2 = -1;
+        *fd1 = *fd2 = 0;
+        ALOGE("WFD Status FD=%d, w=%d, h=%d, disp_w=%d, disp_h=%d, \
+                   hpd=%d, enabled=%d, blanked=%d",
+                   *fd1, mHWCCtx->wfd_w, mHWCCtx->wfd_h,
+                   mHWCCtx->wfd_disp_w, mHWCCtx->wfd_disp_h,
+                   mHWCCtx->wfd_hpd, mHWCCtx->wfd_enabled, mHWCCtx->wfd_blanked);
+        return BAD_VALUE;
     }
 #endif
+    return INVALID_OPERATION;
 }
 
 int ExynosHWCService::getPresentationMode()

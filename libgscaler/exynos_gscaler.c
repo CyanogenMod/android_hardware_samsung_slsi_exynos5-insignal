@@ -212,8 +212,8 @@ static bool m_exynos_gsc_check_src_size(
         *h = (*h + 15) & ~15;
         //*w      = m_exynos_gsc_multiple_of_n(*w, 16);
         //*h      = m_exynos_gsc_multiple_of_n(*h, 16);
-        *crop_w = m_exynos_gsc_multiple_of_n(*crop_w, 4);
-        *crop_h = m_exynos_gsc_multiple_of_n(*crop_h, 4);
+        *crop_w = m_exynos_gsc_multiple_of_n(*crop_w, 2);
+        *crop_h = m_exynos_gsc_multiple_of_n(*crop_h, 2);
         break;
     // YUV422
     case V4L2_PIX_FMT_YUYV:
@@ -338,7 +338,7 @@ static int m_exynos_gsc_output_create(
         return -1;
 
     /* media0 */
-    sprintf(node, "%s%d", PFX_NODE_MEDIADEV, 0);
+    snprintf(node, sizeof(node), "%s%d", PFX_NODE_MEDIADEV, 0);
     media0 = exynos_media_open(node);
     if (media0 == NULL) {
         ALOGE("%s::exynos_media_open failed (node=%s)", __func__, node);
@@ -347,9 +347,9 @@ static int m_exynos_gsc_output_create(
 
     /* Get the sink subdev entity by name and make the node of sink subdev*/
     if (out_mode == GSC_OUT_FIMD)
-        sprintf(devname, PFX_FIMD_ENTITY, dev_num);
+        snprintf(devname, sizeof(devname), PFX_FIMD_ENTITY, dev_num);
     else
-        sprintf(devname, PFX_MXR_ENTITY, 0);
+        snprintf(devname, sizeof(devname), PFX_MXR_ENTITY, 0);
 
     sink_sd_entity = exynos_media_get_entity_by_name(media0, devname, strlen(devname));
     sink_sd_entity->fd = exynos_subdev_open_devname(devname, O_RDWR);
@@ -359,14 +359,14 @@ static int m_exynos_gsc_output_create(
     }
 
     /* get GSC video dev & sub dev entity by name*/
-    sprintf(devname, PFX_GSC_VIDEODEV_ENTITY, dev_num);
+    snprintf(devname, sizeof(devname), PFX_GSC_VIDEODEV_ENTITY, dev_num);
     gsc_vd_entity= exynos_media_get_entity_by_name(media0, devname, strlen(devname));
 
-    sprintf(devname, PFX_GSC_SUBDEV_ENTITY, dev_num);
+    snprintf(devname, sizeof(devname), PFX_GSC_SUBDEV_ENTITY, dev_num);
     gsc_sd_entity= exynos_media_get_entity_by_name(media0, devname, strlen(devname));
 
     /* gsc sub-dev open */
-    sprintf(devname, PFX_GSC_SUBDEV_ENTITY, dev_num);
+    snprintf(devname, sizeof(devname), PFX_GSC_SUBDEV_ENTITY, dev_num);
     gsc_sd_entity->fd = exynos_subdev_open_devname(devname, O_RDWR);
 
     /* setup link : GSC : video device --> sub device */
@@ -399,7 +399,7 @@ static int m_exynos_gsc_output_create(
     }
 
     /* gsc video-dev open */
-    sprintf(devname, PFX_GSC_VIDEODEV_ENTITY, dev_num);
+    snprintf(devname, sizeof(devname), PFX_GSC_VIDEODEV_ENTITY, dev_num);
     gsc_vd_entity->fd = exynos_v4l2_open_devname(devname, O_RDWR);
     cap = V4L2_CAP_STREAMING |
           V4L2_CAP_VIDEO_OUTPUT_MPLANE;
@@ -452,7 +452,7 @@ static int m_exynos_gsc_m2m_create(
         break;
     }
 
-    sprintf(node, "%s%d", PFX_NODE_GSC, video_node_num);
+    snprintf(node, sizeof(node), "%s%d", PFX_NODE_GSC, video_node_num);
     fd = exynos_v4l2_open(node, O_RDWR);
     if (fd < 0) {
         ALOGE("%s::exynos_v4l2_open(%s) fail", __func__, node);
@@ -764,7 +764,7 @@ void *exynos_gsc_create(
 
     srand(time(NULL));
     op_id = rand() % 1000000; // just make random id
-    sprintf(mutex_name, "%sOp%d", LOG_TAG, op_id);
+    snprintf(mutex_name, sizeof(mutex_name), "%sOp%d", LOG_TAG, op_id);
     gsc_handle->op_mutex = exynos_mutex_create(EXYNOS_MUTEX_TYPE_PRIVATE, mutex_name);
     if (gsc_handle->op_mutex == NULL) {
         ALOGE("%s::exynos_mutex_create(%s) fail", __func__, mutex_name);
@@ -775,7 +775,7 @@ void *exynos_gsc_create(
 
     // check if it is available
     for (i = 0; i < NUM_OF_GSC_HW; i++) {
-        sprintf(mutex_name, "%sObject%d", LOG_TAG, i);
+        snprintf(mutex_name, sizeof(mutex_name), "%sObject%d", LOG_TAG, i);
 
         gsc_handle->obj_mutex[i] = exynos_mutex_create(EXYNOS_MUTEX_TYPE_SHARED, mutex_name);
         if (gsc_handle->obj_mutex[i] == NULL) {
@@ -844,7 +844,7 @@ void *exynos_gsc_reserve(int dev_num)
     gsc_handle->op_mutex = NULL;
     gsc_handle->cur_obj_mutex = NULL;
 
-    sprintf(mutex_name, "%sObject%d", LOG_TAG, dev_num);
+    snprintf(mutex_name, sizeof(mutex_name), "%sObject%d", LOG_TAG, dev_num);
     gsc_handle->cur_obj_mutex = exynos_mutex_create(EXYNOS_MUTEX_TYPE_SHARED, mutex_name);
     if (gsc_handle->cur_obj_mutex == NULL) {
         ALOGE("%s::exynos_mutex_create(%s) fail", __func__, mutex_name);
@@ -943,7 +943,7 @@ void *exynos_gsc_create_exclusive(
 
     srand(time(NULL));
     op_id = rand() % 1000000; // just make random id
-    sprintf(mutex_name, "%sOp%d", LOG_TAG, op_id);
+    snprintf(mutex_name, sizeof(mutex_name), "%sOp%d", LOG_TAG, op_id);
     gsc_handle->op_mutex = exynos_mutex_create(EXYNOS_MUTEX_TYPE_PRIVATE, mutex_name);
     if (gsc_handle->op_mutex == NULL) {
         ALOGE("%s::exynos_mutex_create(%s) fail", __func__, mutex_name);
@@ -952,7 +952,7 @@ void *exynos_gsc_create_exclusive(
 
     exynos_mutex_lock(gsc_handle->op_mutex);
 
-    sprintf(mutex_name, "%sObject%d", LOG_TAG, dev_num);
+    snprintf(mutex_name, sizeof(mutex_name), "%sObject%d", LOG_TAG, dev_num);
     gsc_handle->cur_obj_mutex = exynos_mutex_create(EXYNOS_MUTEX_TYPE_SHARED, mutex_name);
     if (gsc_handle->cur_obj_mutex == NULL) {
         ALOGE("%s::exynos_mutex_create(%s) fail", __func__, mutex_name);
@@ -1666,7 +1666,6 @@ static int exynos_gsc_out_run(void *handle,
 
         buf.type     = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
         buf.memory   = V4L2_MEMORY_DMABUF;
-        buf.length   = src_planes;
         buf.m.planes = planes;
 
         if (exynos_v4l2_dqbuf(gsc_handle->gsc_vd_entity->fd, &buf) < 0) {

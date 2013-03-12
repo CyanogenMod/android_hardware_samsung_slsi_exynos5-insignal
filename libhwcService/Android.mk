@@ -26,11 +26,18 @@ LOCAL_CFLAGS += -DHWC_SERVICES
 
 LOCAL_C_INCLUDES := \
 	$(LOCAL_PATH)/../include \
-	$(LOCAL_PATH)/../libhwc \
 	$(TOP)/hardware/samsung_slsi/exynos/include \
 	$(TOP)/hardware/samsung_slsi/exynos/libexynosutils \
 	$(TOP)/hardware/samsung_slsi/$(TARGET_SOC)/include \
 	$(TOP)/hardware/samsung_slsi/$(TARGET_SOC)/libhwcmodule
+
+ifeq ($(BOARD_TV_PRIMARY), true)
+LOCAL_C_INCLUDES += \
+       $(LOCAL_PATH)/../libhwc_tvprimary
+else
+LOCAL_C_INCLUDES += \
+       $(LOCAL_PATH)/../libhwc
+endif
 
 LOCAL_SRC_FILES := ExynosHWCService.cpp IExynosHWC.cpp
 
@@ -44,6 +51,10 @@ endif
 
 ifeq ($(BOARD_USES_CEC),true)
 	LOCAL_CFLAGS += -DUSES_CEC
+endif
+
+ifeq ($(BOARD_TV_PRIMARY),true)
+	LOCAL_CFLAGS += -DTV_PRIMARY
 endif
 
 LOCAL_MODULE := libExynosHWCService

@@ -72,7 +72,8 @@ public:
     ~ExynosHWCService();
 
     virtual int setWFDMode(unsigned int mode);
-    virtual int setWFDOutputResolution(unsigned int width, unsigned int height);
+    virtual int setWFDOutputResolution(unsigned int width, unsigned int height,
+                                      unsigned int disp_w, unsigned int disp_h);
     virtual int setExtraFBMode(unsigned int mode);
     virtual int setCameraMode(unsigned int mode);
     virtual int setForceMirrorMode(unsigned int mode);
@@ -91,10 +92,11 @@ public:
     virtual void setHdmiAudioChannel(uint32_t channels);
     virtual void setHdmiSubtitles(bool use);
     virtual void setPresentationMode(bool use);
+    virtual void setWFDSleepCtrl(bool black);
 
     virtual int getWFDMode();
     virtual void getWFDOutputResolution(unsigned int *width, unsigned int *height);
-    virtual void getWFDOutputInfo(int *fd1, int *fd2, struct wfd_layer_t *wfd_info);
+    virtual int getWFDOutputInfo(int *fd1, int *fd2, struct wfd_layer_t *wfd_info);
     virtual int getPresentationMode(void);
     virtual void getHdmiResolution(uint32_t *width, uint32_t *height);
     virtual uint32_t getHdmiCableStatus();

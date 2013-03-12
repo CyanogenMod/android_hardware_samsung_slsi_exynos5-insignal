@@ -58,6 +58,7 @@
 #include "videodev2.h"
 #ifdef USE_FB_PHY_LINEAR
 const size_t NUM_HW_WIN_FB_PHY = 2;
+#undef DUAL_VIDEO_OVERLAY_SUPORT
 #endif
 const size_t NUM_HW_WINDOWS = 5;
 const size_t NO_FB_NEEDED = NUM_HW_WINDOWS + 1;
@@ -65,6 +66,19 @@ const size_t MAX_PIXELS = 2560 * 1600 * 2;
 const size_t GSC_W_ALIGNMENT = 16;
 const size_t GSC_H_ALIGNMENT = 16;
 const size_t GSC_DST_H_ALIGNMENT_RGB888 = 1;
+#ifdef DUAL_VIDEO_OVERLAY_SUPORT
+const size_t FIMD_GSC_IDX = 0;
+const size_t FIMD_GSC_SEC_IDX = 1;
+const size_t FIMD_GSC_SBS_IDX = 2;
+const size_t FIMD_GSC_TB_IDX = 3;
+const size_t FIMD_GSC_FINAL_INDEX = 3;
+const size_t HDMI_GSC_IDX = 4;
+const size_t HDMI_GSC_SBS_IDX = 5;
+const size_t HDMI_GSC_TB_IDX = 6;
+const int FIMD_GSC_USAGE_IDX[] = {FIMD_GSC_IDX, FIMD_GSC_SEC_IDX,
+                                                    FIMD_GSC_SBS_IDX, FIMD_GSC_TB_IDX};
+const int AVAILABLE_GSC_UNITS[] = { 0, 3, 0, 0, 3, 3, 3 };
+#else
 const size_t FIMD_GSC_IDX = 0;
 const size_t HDMI_GSC_IDX = 1;
 const size_t FIMD_GSC_SBS_IDX = 2;
@@ -72,17 +86,21 @@ const size_t FIMD_GSC_TB_IDX = 3;
 const size_t HDMI_GSC_SBS_IDX = 4;
 const size_t HDMI_GSC_TB_IDX = 5;
 const int AVAILABLE_GSC_UNITS[] = { 0, 3, 0, 0, 3, 3 };
+#endif
 const size_t NUM_GSC_UNITS = sizeof(AVAILABLE_GSC_UNITS) /
         sizeof(AVAILABLE_GSC_UNITS[0]);
 const size_t BURSTLEN_BYTES = 16 * 8;
 const size_t NUM_HDMI_BUFFERS = 3;
 #define DIRECT_FB_SRC_BUF_WA
-#ifdef USE_FB_PHY_LINEAR
-#define SKIP_STATIC_LAYER_COMP
+
 #ifdef SKIP_STATIC_LAYER_COMP
 #define NUM_VIRT_OVER   5
 #endif
+
+#ifdef GSC_VIDEO
+#define NUM_VIRT_OVER_HDMI 5
 #endif
+
 #ifdef HWC_SERVICES
 #include "../libhwcService/ExynosHWCService.h"
 namespace android {
@@ -90,8 +108,10 @@ class ExynosHWCService;
 }
 #endif
 
+#define GSC_SKIP_DUPLICATE_FRAME_PROCESSING
+
 #ifdef HWC_DYNAMIC_RECOMPOSITION
-#define HWC_FIMD_BW_TH  1.5   /* valid range 1 to 5 */
+#define HWC_FIMD_BW_TH  1   /* valid range 1 to 5 */
 #define HWC_FPS_TH          3    /* valid range 1 to 60 */
 #define VSYNC_INTERVAL (1000000000.0 / 60)
 typedef enum _COMPOS_MODE_SWITCH {
@@ -161,6 +181,9 @@ struct exynos5_gsc_data_t {
 #ifdef SUPPORT_GSC_LOCAL_PATH
     int             gsc_mode;
 #endif
+#ifdef GSC_SKIP_DUPLICATE_FRAME_PROCESSING
+    uint32_t    last_gsc_lay_hnd;
+#endif
 };
 
 struct hdmi_layer_t {
@@ -174,7 +197,11 @@ struct hdmi_layer_t {
     size_t  queued_buf;
 };
 
+#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USES_WFD)
 #include "FimgApi.h"
+#endif
+
+#ifdef USE_GRALLOC_FLAG_FOR_HDMI
 #define HWC_SKIP_HDMI_RENDERING 0x80000000
 
 const size_t NUM_COMPOSITE_BUFFER_FOR_EXTERNAL = 4;
@@ -207,6 +234,7 @@ struct FB_TARGET_Info {
     int             map_size;
 };
 #define NUM_FB_TARGET 4
+#endif
 
 struct exynos5_hwc_composer_device_1_t {
     hwc_composer_device_1_t base;
@@ -240,10 +268,15 @@ struct exynos5_hwc_composer_device_1_t {
     bool wfd_blanked;
     int  wfd_w;
     int  wfd_h;
+    int  wfd_disp_w;
+    int  wfd_disp_h;
     int  wfd_buf_fd[3];
     struct wfd_layer_t      wfd_info;
     int  wfd_locked_fd;
     bool mPresentationMode;
+    int wfd_skipping;
+    int wfd_sleepctrl;
+
 #endif
 
     hdmi_layer_t            hdmi_layers[2];
@@ -317,13 +350,13 @@ struct exynos5_hwc_composer_device_1_t {
     int                     hdmi_video_rotation;    /* HAL_TRANSFORM_ROT_XXX */
     bool                    external_display_pause;
     bool                    local_external_display_pause;
+    bool                    popup_play_drm_contents;
 #ifdef USE_GRALLOC_FLAG_FOR_HDMI
     bool                    use_blocking_layer;
     int                     num_of_ext_disp_layer;
     int                     num_of_ext_disp_video_layer;
     int                     num_of_ext_only_layer;
     int                     num_of_ext_flexible_layer;
-#endif
 
     buffer_handle_t         composite_buffer_for_external[NUM_COMPOSITE_BUFFER_FOR_EXTERNAL];
     unsigned long           va_composite_buffer_for_external[NUM_COMPOSITE_BUFFER_FOR_EXTERNAL]; /* mapped address */
@@ -340,6 +373,19 @@ struct exynos5_hwc_composer_device_1_t {
     int                     surface_fd_for_vfb[NUM_BUFFER_U4A];  /* for ubuntu */
     int                     num_of_ext_vfb_layer;
     struct FB_TARGET_Info   fb_target_info[NUM_FB_TARGET];
+    private_handle_t        *prev_handle_vfb;
+#endif
+
+    int  is_fb_layer;
+    int  is_video_layer;
+    int  fb_started;
+    int  video_started;
+
+#ifdef GSC_VIDEO
+    const void              *last_lay_hnd_hdmi[NUM_VIRT_OVER];
+    int                     virtual_ovly_flag_hdmi;
+#endif
+
 };
 
 #if defined(HWC_SERVICES)

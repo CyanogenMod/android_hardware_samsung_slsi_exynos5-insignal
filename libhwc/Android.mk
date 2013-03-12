@@ -29,6 +29,8 @@ ifeq ($(BOARD_USES_HWC_SERVICES),true)
 
 ifeq ($(BOARD_USES_WFD),true)
 	LOCAL_CFLAGS += -DUSES_WFD
+	LOCAL_SHARED_LIBRARIES += libfimg
+	LOCAL_C_INCLUDES += $(TOP)/hardware/samsung_slsi/exynos/libfimg4x
 endif
 
 ifeq ($(BOARD_USE_S3D_SUPPORT),true)
@@ -49,8 +51,8 @@ ifeq ($(BOARD_USES_FB_PHY_LINEAR),true)
 	LOCAL_CFLAGS += -DUSE_FB_PHY_LINEAR
 endif
 
-ifeq ($(BOARD_USES_U4A),true)
-	LOCAL_CFLAGS += -DUSES_U4A
+ifeq ($(BOARD_USES_VFB),true)
+	LOCAL_CFLAGS += -DUSES_VFB
 endif
 
 ifeq ($(BOARD_HDMI_INCAPABLE), true)

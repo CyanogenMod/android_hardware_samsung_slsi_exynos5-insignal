@@ -210,6 +210,10 @@ static int exynos_km_import_keypair(const keymaster_device_t* dev,
 	   metadata.rsapriv.lenpriexp = BN_bn2bin(rsa->p, kbuf + key_len);
 	   key_len += metadata.rsapriv.lenprimod;
     }
+
+    metadata.rfu = 0;
+    metadata.rfulen = 0;
+
     memcpy(kbuf, &metadata, sizeof(metadata));
 
     UniquePtr<uint8_t> outPtr(reinterpret_cast<uint8_t*>(malloc(RSA_KEY_BUFFER_SIZE)));

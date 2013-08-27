@@ -16,6 +16,9 @@ LOCAL_PATH:= $(call my-dir)
 # HAL module implemenation, not prelinked and stored in
 # hw/<COPYPIX_HARDWARE_MODULE_ID>.<ro.product.board>.so
 include $(CLEAR_VARS)
+
+PLATFORM_DIR := $(TARGET_BOARD_PLATFORM)-insignal
+
 LOCAL_PRELINK_MODULE := false
 LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR_SHARED_LIBRARIES)/hw
 LOCAL_SHARED_LIBRARIES := liblog libcutils libEGL libGLESv1_CM libhardware \
@@ -69,7 +72,7 @@ LOCAL_C_INCLUDES := \
 	$(TOP)/hardware/samsung_slsi/exynos/libexynosutils \
 	$(TOP)/hardware/samsung_slsi/$(TARGET_SOC)/include \
 	$(TOP)/hardware/samsung_slsi/$(TARGET_SOC)/libhwcmodule \
-	$(TOP)/hardware/samsung_slsi/$(TARGET_BOARD_PLATFORM)/libcec
+	$(TOP)/hardware/samsung_slsi/$(PLATFORM_DIR)/libcec
 
 ifeq ($(BOARD_USE_GRALLOC_FLAG_FOR_HDMI),true)
 	LOCAL_CFLAGS += -DUSE_GRALLOC_FLAG_FOR_HDMI

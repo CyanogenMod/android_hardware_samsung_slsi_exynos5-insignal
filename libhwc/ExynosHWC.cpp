@@ -4625,5 +4625,7 @@ hwc_module_t HAL_MODULE_INFO_SYM = {
         name: "Samsung exynos5 hwcomposer module",
         author: "Samsung LSI",
         methods: &exynos5_hwc_module_methods,
-    }
+        dso: NULL, /* remove compilation warnings */
+        reserved: {0}, /* remove compilation warnings */
+    },
 };

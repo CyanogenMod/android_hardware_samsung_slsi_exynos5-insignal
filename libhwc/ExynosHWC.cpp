@@ -307,9 +307,8 @@ static int exynos5_get_drmMode(int flags)
         else
 #endif
             return SECURE_DRM;
-    } else {
-        return NO_DRM;
     }
+    return NO_DRM;
 }
 
 #ifdef SUPPORT_GSC_LOCAL_PATH

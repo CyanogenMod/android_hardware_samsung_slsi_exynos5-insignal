@@ -15,7 +15,7 @@
  */
 #include "ExynosHWCService.h"
 #include "exynos_v4l2.h"
-#include "videodev2_exynos_media.h"
+#include <linux/videodev2_exynos_media.h>
 
 #define HWC_SERVICE_DEBUG 1
 

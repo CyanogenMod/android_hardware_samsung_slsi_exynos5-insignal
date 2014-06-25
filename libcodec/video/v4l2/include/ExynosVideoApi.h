@@ -39,6 +39,7 @@ typedef enum _ExynosVideoErrorType {
     VIDEO_ERROR_NOBUFFERS = -6,
     VIDEO_ERROR_POLL      = -7,
     VIDEO_ERROR_DQBUF_EIO = -8,
+    VIDEO_ERROR_NOSUPPORT = -9,
 } ExynosVideoErrorType;
 
 typedef enum _ExynosVideoCodingType {
@@ -59,6 +60,9 @@ typedef enum _ExynosVideoColorFormatType {
     VIDEO_COLORFORMAT_NV12,
     VIDEO_COLORFORMAT_NV21,
     VIDEO_COLORFORMAT_NV12_TILED,
+    VIDEO_COLORFORMAT_I420,
+    VIDEO_COLORFORMAT_YV12,
+    VIDEO_COLORFORMAT_ARGB8888,
     VIDEO_COLORFORMAT_RESERVED,
 } ExynosVideoColorFormatType;
 
@@ -87,6 +91,14 @@ typedef enum _ExynosVideoFrameSkipMode {
     VIDEO_FRAME_SKIP_MODE_BUF_LIMIT,
 } ExynosVideoFrameSkipMode;
 
+typedef enum _ExynosVideoMFCVersion {
+    MFC_ERROR   = 0,
+    MFC_51      = 0x51,
+    MFC_61      = 0x61,
+    MFC_65      = 0x65,
+    MFC_72      = 0x72,
+} ExynosVideoMFCVersion;
+
 typedef struct _ExynosVideoRect {
     unsigned int nTop;
     unsigned int nLeft;
@@ -99,6 +111,7 @@ typedef struct _ExynosVideoGeometry {
     unsigned int               nFrameHeight;
     unsigned int               nSizeImage;
     unsigned int               nAlignPlaneSize[VIDEO_BUFFER_MAX_PLANES];
+    unsigned int               nPlaneCnt;
     ExynosVideoRect            cropRect;
     ExynosVideoCodingType      eCompressionFormat;
     ExynosVideoColorFormatType eColorFormat;
@@ -208,10 +221,29 @@ typedef struct _ExynosVideoEncH263Param {
     int FrameRate;                      /* [IN] rate control parameter(frame rate) */
 } ExynosVideoEncH263Param;
 
+typedef struct _ExynosVideoEncVp8Param {
+    /* VP8 specific parameters */
+    int FrameRate;                    /* [IN] rate control parameter(frame rate) */
+    int Vp8Version;                   /* [IN] vp8 version */
+    int Vp8NumberOfPartitions;        /* [IN] number of partitions */
+    int Vp8FilterLevel;               /* [IN] filter level */
+    int Vp8FilterSharpness;           /* [IN] filter sharpness */
+    int Vp8GoldenFrameSel;            /* [IN] indication of golden frame */
+    int Vp8GFRefreshPeriod;           /* [IN] refresh period of golden frame */
+    int HierarchyQpEnable;            /* [IN] QP value for each temporal layer */
+    int HierarchyQPLayer0;            /* [IN] QP value for first layer */
+    int HierarchyQPLayer1;            /* [IN] QP value for second layer */
+    int HierarchyQPLayer2;            /* [IN] QP value for third layer */
+    int RefNumberForPFrame;           /* [IN] number of refernce picture for p frame */
+    int DisableIntraMd4x4;            /* [IN] prevent intra 4x4 mode */
+    int NumTemporalLayer;             /* [IN] number of hierarchical layer */
+} ExynosVideoEncVp8Param;
+
 typedef union _ExynosVideoEncCodecParam {
     ExynosVideoEncH264Param     h264;
     ExynosVideoEncMpeg4Param    mpeg4;
     ExynosVideoEncH263Param     h263;
+    ExynosVideoEncVp8Param      vp8;
 } ExynosVideoEncCodecParam;
 
 typedef struct _ExynosVideoEncParam {
@@ -239,6 +271,8 @@ typedef struct _ExynosVideoDecOps {
     ExynosVideoErrorType  (*Get_FramePackingInfo)(void *pHandle, ExynosVideoFramePacking *pFramepacking);
     ExynosVideoErrorType  (*Set_ImmediateDisplay)(void *pHandle);
     ExynosVideoErrorType  (*Enable_DTSMode)(void *pHandle);
+    ExynosVideoErrorType  (*Set_QosRatio)(void *pHandle, int ratio);
+    ExynosVideoErrorType  (*Enable_DualDPBMode)(void *pHandle);
 } ExynosVideoDecOps;
 
 typedef struct _ExynosVideoEncOps {
@@ -256,6 +290,8 @@ typedef struct _ExynosVideoEncOps {
     ExynosVideoErrorType (*Set_FrameSkip)(void *pHandle, int frameSkip);
     ExynosVideoErrorType (*Set_IDRPeriod)(void *pHandle, int period);
     ExynosVideoErrorType (*Enable_PrependSpsPpsToIdr)(void *pHandle);
+    ExynosVideoErrorType (*Set_QosRatio)(void *pHandle, int ratio);
+    ExynosVideoErrorType (*Check_RGBSupport)(void *pHandle);
 } ExynosVideoEncOps;
 
 typedef struct _ExynosVideoDecBufferOps {
@@ -278,6 +314,8 @@ typedef struct _ExynosVideoDecBufferOps {
     ExynosVideoErrorType  (*Clear_Queue)(void *pHandle);
     ExynosVideoErrorType  (*Cleanup_Buffer)(void *pHandle);
     ExynosVideoErrorType  (*Apply_RegisteredBuffer)(void *pHandle);
+    ExynosVideoErrorType  (*ExtensionEnqueue)(void *pHandle, unsigned char *pBuffer[], unsigned int *pFd[], unsigned int allocLen[], unsigned int dataSize[], int nPlanes, void *pPrivate);
+    ExynosVideoErrorType  (*ExtensionDequeue)(void *pHandle, ExynosVideoBuffer *pVideoBuffer);
 } ExynosVideoDecBufferOps;
 
 typedef struct _ExynosVideoEncBufferOps {
@@ -300,6 +338,7 @@ typedef struct _ExynosVideoEncBufferOps {
     ExynosVideoErrorType  (*Clear_Queue)(void *pHandle);
     ExynosVideoErrorType  (*ExtensionEnqueue)(void *pHandle, unsigned char *pBuffer[], unsigned int *pFd[], unsigned int allocLen[], unsigned int dataSize[], int nPlanes, void *pPrivate);
     ExynosVideoErrorType  (*ExtensionDequeue)(void *pHandle, ExynosVideoBuffer *pVideoBuffer);
+    int                   (*Get_SpareSize)(void *pHandle);
 } ExynosVideoEncBufferOps;
 
 int Exynos_Video_Register_Decoder(

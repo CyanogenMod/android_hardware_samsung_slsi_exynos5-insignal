@@ -17,9 +17,6 @@ LOCAL_PATH:= $(call my-dir)
 # hw/<COPYPIX_HARDWARE_MODULE_ID>.<ro.product.board>.so
 
 include $(CLEAR_VARS)
-
-PLATFORM_DIR := $(TARGET_BOARD_PLATFORM)-insignal
-
 LOCAL_PRELINK_MODULE := false
 LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR_SHARED_LIBRARIES)/hw
 LOCAL_SHARED_LIBRARIES := liblog libcutils libEGL libGLESv1_CM libhardware \
@@ -62,6 +59,10 @@ ifeq ($(BOARD_HDMI_INCAPABLE), true)
 	LOCAL_CFLAGS += -DHDMI_INCAPABLE
 endif
 
+ifeq ($(TARGET_SOC),exynos5410)
+	LOCAL_CFLAGS += -DSOC_EXYNOS5410
+endif
+
 LOCAL_CFLAGS += -DLOG_TAG=\"hwcomposer\"
 
 LOCAL_C_INCLUDES := \
@@ -69,18 +70,12 @@ LOCAL_C_INCLUDES := \
 	$(LOCAL_PATH)/../include \
 	$(TOP)/hardware/samsung_slsi/exynos/include \
 	$(TOP)/hardware/samsung_slsi/exynos/libexynosutils \
+	$(TOP)/hardware/samsung_slsi/exynos/libcec \
 	$(TOP)/hardware/samsung_slsi/$(TARGET_SOC)/include \
-	$(TOP)/hardware/samsung_slsi/$(TARGET_SOC)/libhwcmodule \
-	$(TOP)/hardware/samsung_slsi/$(PLATFORM_DIR)/libcec
+	$(TOP)/hardware/samsung_slsi/$(TARGET_SOC)/libhwcmodule
 
 LOCAL_ADDITIONAL_DEPENDENCIES := \
 	$(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
-
-ifeq ($(BOARD_USE_GRALLOC_FLAG_FOR_HDMI),true)
-	LOCAL_CFLAGS += -DUSE_GRALLOC_FLAG_FOR_HDMI
-	LOCAL_SHARED_LIBRARIES += libfimg
-	LOCAL_C_INCLUDES += $(TOP)/hardware/samsung_slsi/exynos/libfimg4x
-endif
 
 LOCAL_SRC_FILES := ExynosHWC.cpp
 

@@ -19,6 +19,8 @@
 #include <string.h>
 #include <stdint.h>
 
+#include <keystore.h>
+
 #include <hardware/hardware.h>
 #include <hardware/keymaster.h>
 
@@ -205,8 +207,8 @@ static int exynos_km_import_keypair(const keymaster_device_t* dev,
 	   key_len += metadata.rsacrtpriv.lenqinv;
     } else {
            metadata.keytype = TEE_KEYPAIR_RSA;
-	   metadata.rsapriv.lenpriexp = BN_bn2bin(rsa->p, kbuf + key_len);
-	   key_len += metadata.rsapriv.lenprimod;
+	   metadata.rsapriv.lenpriexp = BN_bn2bin(rsa->d, kbuf + key_len);
+	   key_len += metadata.rsapriv.lenpriexp;
     }
 
     metadata.rfu = 0;

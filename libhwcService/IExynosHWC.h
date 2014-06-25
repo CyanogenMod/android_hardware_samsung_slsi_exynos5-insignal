@@ -69,8 +69,10 @@ public:
     virtual int setProtectionMode(unsigned int mode) = 0;
     virtual int setExternalDispLayerNum(unsigned int num) = 0;
     virtual int setForceGPU(unsigned int on) = 0;
-    virtual int setVideoRotation(unsigned int rotation_degree) = 0;
-    virtual int getVideoRotation(void) = 0;
+    virtual int setExternalUITransform(unsigned int transform) = 0;
+    virtual int getExternalUITransform(void) = 0;
+    virtual int setWFDOutputTransform(unsigned int transform) = 0;
+    virtual int getWFDOutputTransform(void) = 0;
 
     virtual void setHdmiResolution(int resolution, int s3dMode) = 0;
     virtual void setHdmiCableStatus(int status) = 0;

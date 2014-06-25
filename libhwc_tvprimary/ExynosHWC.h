@@ -66,6 +66,7 @@ const size_t GSC_DST_CROP_W_ALIGNMENT_RGB888 = 32;
 #define MIXER_UPDATE
 #define SUPPORT_GSC_LOCAL_PATH
 #define HWC_DYNAMIC_RECOMPOSITION
+#define USE_NORMAL_DRM
 #define FBTARGET_SYNC_WAITING
 
 #define USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI
@@ -210,11 +211,11 @@ struct hdmi_layer_t {
     size_t  queued_buf;
 };
 
-#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USES_WFD) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
+#if defined(USES_WFD) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
 #include "FimgApi.h"
 #endif
 
-#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
+#if defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
 #define HWC_SKIP_HDMI_RENDERING 0x80000000
 
 const size_t NUM_COMPOSITE_BUFFER_FOR_EXTERNAL = 4;
@@ -289,7 +290,8 @@ struct exynos5_hwc_composer_device_1_t {
     bool mPresentationMode;
     int wfd_skipping;
     int wfd_sleepctrl;
-
+    int wfd_force_transform;
+    struct v4l2_rect wfd_disp_rect;
 #endif
 
     hdmi_layer_t            hdmi_layers[2];
@@ -360,12 +362,12 @@ struct exynos5_hwc_composer_device_1_t {
 #endif
 
     bool                    force_mirror_mode;
-    int                     hdmi_video_rotation;    /* HAL_TRANSFORM_ROT_XXX */
+    int                     ext_fbt_transform;    /* HAL_TRANSFORM_ROT_XXX */
     bool                    external_display_pause;
     bool                    local_external_display_pause;
     bool                    popup_play_drm_contents;
     int                     num_of_protected_layer;
-#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
+#if defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
     bool                    use_blocking_layer;
     int                     num_of_ext_disp_layer;
     int                     num_of_ext_disp_video_layer;

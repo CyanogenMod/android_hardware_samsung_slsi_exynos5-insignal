@@ -47,6 +47,8 @@
 #define LOG_TAG "ExynosVideoDecoder"
 #include <utils/Log.h>
 
+#define MAX_INPUTBUFFER_COUNT 32
+
 /*
  * [Common] __CodingType_To_V4L2PixelFormat
  */
@@ -98,6 +100,12 @@ static unsigned int __ColorFormatType_To_V4L2PixelFormat(ExynosVideoColorFormatT
     case VIDEO_COLORFORMAT_NV21:
         pixelformat = V4L2_PIX_FMT_NV21M;
         break;
+    case VIDEO_COLORFORMAT_I420:
+        pixelformat = V4L2_PIX_FMT_YUV420M;
+        break;
+    case VIDEO_COLORFORMAT_YV12:
+        pixelformat = V4L2_PIX_FMT_YVU420M;
+        break;
     case VIDEO_COLORFORMAT_NV12:
     default:
         pixelformat = V4L2_PIX_FMT_NV12M;
@@ -121,6 +129,12 @@ static ExynosVideoColorFormatType __V4L2PixelFormat_To_ColorFormatType(unsigned 
     case V4L2_PIX_FMT_NV21M:
         colorFormatType = VIDEO_COLORFORMAT_NV21;
         break;
+    case V4L2_PIX_FMT_YUV420M:
+        colorFormatType = VIDEO_COLORFORMAT_I420;
+        break;
+    case V4L2_PIX_FMT_YVU420M:
+        colorFormatType = VIDEO_COLORFORMAT_YV12;
+        break;
     case V4L2_PIX_FMT_NV12MT:
     default:
         colorFormatType = VIDEO_COLORFORMAT_NV12_TILED;
@@ -128,6 +142,25 @@ static ExynosVideoColorFormatType __V4L2PixelFormat_To_ColorFormatType(unsigned 
     }
 
     return colorFormatType;
+}
+
+/*
+ * [Common] Get Version Info
+ */
+static int getMFCVersion(void *pHandle)
+{
+    ExynosVideoDecContext *pCtx = (ExynosVideoDecContext *)pHandle;
+    int version = 0;
+
+    if (pCtx == NULL) {
+        ALOGE("%s: Video context info must be supplied", __func__);
+        goto EXIT;
+    }
+
+    exynos_v4l2_g_ctrl(pCtx->hDec, V4L2_CID_MPEG_MFC_GET_VERSION_INFO, &version);
+
+EXIT:
+    return version;
 }
 
 /*
@@ -240,7 +273,7 @@ static ExynosVideoErrorType MFC_Decoder_Finalize(void *pHandle)
 
     if (pCtx->bShareInbuf == VIDEO_FALSE) {
         for (i = 0; i < pCtx->nInbufs; i++) {
-            for (j = 0; j < VIDEO_DECODER_INBUF_PLANES; j++) {
+            for (j = 0; j < pCtx->nInbufPlanes; j++) {
                 pVideoPlane = &pCtx->pInbuf[i].planes[j];
                 if (pVideoPlane->addr != NULL) {
                     munmap(pVideoPlane->addr, pVideoPlane->allocSize);
@@ -258,7 +291,7 @@ static ExynosVideoErrorType MFC_Decoder_Finalize(void *pHandle)
 
     if (pCtx->bShareOutbuf == VIDEO_FALSE) {
         for (i = 0; i < pCtx->nOutbufs; i++) {
-            for (j = 0; j < VIDEO_DECODER_OUTBUF_PLANES; j++) {
+            for (j = 0; j < pCtx->nOutbufPlanes; j++) {
                 pVideoPlane = &pCtx->pOutbuf[i].planes[j];
                 if (pVideoPlane->addr != NULL) {
                     munmap(pVideoPlane->addr, pVideoPlane->allocSize);
@@ -581,6 +614,64 @@ EXIT:
 }
 
 /*
+ * [Decoder OPS] Set Qos Ratio
+ */
+static ExynosVideoErrorType MFC_Decoder_Set_QosRatio(
+    void *pHandle,
+    int   ratio)
+{
+    ExynosVideoDecContext *pCtx = (ExynosVideoDecContext *)pHandle;
+    ExynosVideoErrorType   ret  = VIDEO_ERROR_NONE;
+
+    if (pCtx == NULL) {
+        ALOGE("%s: Video context info must be supplied", __func__);
+        ret = VIDEO_ERROR_BADPARAM;
+        goto EXIT;
+    }
+
+    if (exynos_v4l2_s_ctrl(pCtx->hDec, V4L2_CID_MPEG_VIDEO_QOS_RATIO, ratio) != 0) {
+        ret = VIDEO_ERROR_APIFAIL;
+        goto EXIT;
+    }
+
+EXIT:
+    return ret;
+}
+
+/*
+ * [Decoder OPS] Enable Dual DPB Mode
+ */
+static ExynosVideoErrorType MFC_Decoder_Enable_DualDPBMode(void *pHandle)
+{
+    ExynosVideoDecContext *pCtx = (ExynosVideoDecContext *)pHandle;
+    ExynosVideoErrorType   ret  = VIDEO_ERROR_NONE;
+
+    int version = 0;
+
+    if (pCtx == NULL) {
+        ALOGE("%s: Video context info must be supplied", __func__);
+        goto EXIT;
+    }
+
+    version = getMFCVersion(pHandle);
+    switch ((ExynosVideoMFCVersion)version) {
+    case MFC_72:
+        if (exynos_v4l2_s_ctrl(pCtx->hDec, V4L2_CID_MPEG_MFC_SET_DUAL_DPB_MODE, 1) != 0) {
+            ret = VIDEO_ERROR_APIFAIL;
+            goto EXIT;
+        }
+        ret = VIDEO_ERROR_NONE;
+        break;
+    default:
+        ret = VIDEO_ERROR_NOSUPPORT;
+        break;
+    }
+
+EXIT:
+    return ret;
+}
+
+/*
  * [Decoder Buffer OPS] Enable Cacheable (Input)
  */
 static ExynosVideoErrorType MFC_Decoder_Enable_Cacheable_Inbuf(void *pHandle)
@@ -762,6 +853,7 @@ static ExynosVideoErrorType MFC_Decoder_Set_Geometry_Inbuf(
     }
 
     memcpy(&pCtx->inbufGeometry, bufferConf, sizeof(pCtx->inbufGeometry));
+    pCtx->nInbufPlanes = bufferConf->nPlaneCnt;
 
 EXIT:
     return ret;
@@ -802,6 +894,7 @@ static ExynosVideoErrorType MFC_Decoder_Set_Geometry_Outbuf(
     }
 
     memcpy(&pCtx->outbufGeometry, bufferConf, sizeof(pCtx->outbufGeometry));
+    pCtx->nOutbufPlanes = bufferConf->nPlaneCnt;
 
 EXIT:
     return ret;
@@ -819,6 +912,7 @@ static ExynosVideoErrorType MFC_Decoder_Get_Geometry_Outbuf(
 
     struct v4l2_format fmt;
     struct v4l2_crop   crop;
+    int i;
 
     if (pCtx == NULL) {
         ALOGE("%s: Video context info must be supplied", __func__);
@@ -859,8 +953,8 @@ static ExynosVideoErrorType MFC_Decoder_Get_Geometry_Outbuf(
         bufferConf->bInterlaced = VIDEO_FALSE;
 
     /* Get planes aligned buffer size */
-    bufferConf->nAlignPlaneSize[0] = fmt.fmt.pix_mp.plane_fmt[0].sizeimage;
-    bufferConf->nAlignPlaneSize[1] = fmt.fmt.pix_mp.plane_fmt[1].sizeimage;
+    for (i = 0; i < pCtx->nOutbufPlanes; i++)
+        bufferConf->nAlignPlaneSize[i] = fmt.fmt.pix_mp.plane_fmt[i].sizeimage;
 
     bufferConf->cropRect.nTop = crop.c.top;
     bufferConf->cropRect.nLeft = crop.c.left;
@@ -884,7 +978,7 @@ static ExynosVideoErrorType MFC_Decoder_Setup_Inbuf(
 
     struct v4l2_requestbuffers req;
     struct v4l2_buffer         buf;
-    struct v4l2_plane          planes[VIDEO_DECODER_INBUF_PLANES];
+    struct v4l2_plane          planes[VIDEO_BUFFER_MAX_PLANES];
     int i;
 
     if (pCtx == NULL) {
@@ -894,9 +988,8 @@ static ExynosVideoErrorType MFC_Decoder_Setup_Inbuf(
     }
 
     if (nBufferCount == 0) {
-        ALOGE("%s: Buffer count must be greater than 0", __func__);
-        ret = VIDEO_ERROR_BADPARAM;
-        goto EXIT;
+        nBufferCount = MAX_INPUTBUFFER_COUNT;
+        ALOGV("%s: Change buffer count %d", __func__, nBufferCount);
     }
 
     ALOGV("%s: setting up inbufs (%d) shared=%s\n", __func__, nBufferCount,
@@ -939,7 +1032,7 @@ static ExynosVideoErrorType MFC_Decoder_Setup_Inbuf(
         buf.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
         buf.memory = V4L2_MEMORY_MMAP;
         buf.m.planes = planes;
-        buf.length = VIDEO_DECODER_INBUF_PLANES;
+        buf.length = pCtx->nInbufPlanes;
 
         for (i = 0; i < pCtx->nInbufs; i++) {
             buf.index = i;
@@ -985,6 +1078,7 @@ EXIT:
         }
 
         free(pCtx->pInbuf);
+        pCtx->pInbuf = NULL;
     }
 
     return ret;
@@ -1003,7 +1097,7 @@ static ExynosVideoErrorType MFC_Decoder_Setup_Outbuf(
 
     struct v4l2_requestbuffers req;
     struct v4l2_buffer         buf;
-    struct v4l2_plane          planes[VIDEO_DECODER_OUTBUF_PLANES];
+    struct v4l2_plane          planes[VIDEO_BUFFER_MAX_PLANES];
     int i, j;
 
     if (pCtx == NULL) {
@@ -1058,7 +1152,7 @@ static ExynosVideoErrorType MFC_Decoder_Setup_Outbuf(
         buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
         buf.memory = V4L2_MEMORY_MMAP;
         buf.m.planes = planes;
-        buf.length = VIDEO_DECODER_OUTBUF_PLANES;
+        buf.length = pCtx->nOutbufPlanes;
 
         for (i = 0; i < pCtx->nOutbufs; i++) {
             buf.index = i;
@@ -1067,7 +1161,7 @@ static ExynosVideoErrorType MFC_Decoder_Setup_Outbuf(
                 goto EXIT;
             }
 
-            for (j = 0; j < VIDEO_DECODER_OUTBUF_PLANES; j++) {
+            for (j = 0; j < pCtx->nOutbufPlanes; j++) {
                 pVideoPlane = &pCtx->pOutbuf[i].planes[j];
                 pVideoPlane->addr = mmap(NULL,
                         buf.m.planes[j].length, PROT_READ | PROT_WRITE,
@@ -1094,7 +1188,7 @@ EXIT:
     if ((pCtx != NULL) && (pCtx->pOutbuf != NULL)) {
         if (pCtx->bShareOutbuf == VIDEO_FALSE) {
             for (i = 0; i < pCtx->nOutbufs; i++) {
-                for (j = 0; j < VIDEO_DECODER_OUTBUF_PLANES; j++) {
+                for (j = 0; j < pCtx->nOutbufPlanes; j++) {
                     pVideoPlane = &pCtx->pOutbuf[i].planes[j];
                     if (pVideoPlane->addr == MAP_FAILED) {
                         pVideoPlane->addr = NULL;
@@ -1107,6 +1201,7 @@ EXIT:
         }
 
         free(pCtx->pOutbuf);
+        pCtx->pOutbuf = NULL;
     }
 
     return ret;
@@ -1281,7 +1376,7 @@ static ExynosVideoErrorType MFC_Decoder_Register_Inbuf(
     ExynosVideoErrorType   ret  = VIDEO_ERROR_NONE;
     int nIndex, plane;
 
-    if ((pCtx == NULL) || (planes == NULL) || (nPlanes != VIDEO_DECODER_INBUF_PLANES)) {
+    if ((pCtx == NULL) || (planes == NULL) || (nPlanes != pCtx->nInbufPlanes)) {
         ALOGE("%s: params must be supplied", __func__);
         ret = VIDEO_ERROR_BADPARAM;
         goto EXIT;
@@ -1319,7 +1414,7 @@ static ExynosVideoErrorType MFC_Decoder_Register_Outbuf(
     ExynosVideoErrorType   ret  = VIDEO_ERROR_NONE;
     int nIndex, plane;
 
-    if ((pCtx == NULL) || (planes == NULL) || (nPlanes != VIDEO_DECODER_OUTBUF_PLANES)) {
+    if ((pCtx == NULL) || (planes == NULL) || (nPlanes != pCtx->nOutbufPlanes)) {
         ALOGE("%s: params must be supplied", __func__);
         ret = VIDEO_ERROR_BADPARAM;
         goto EXIT;
@@ -1331,11 +1426,11 @@ static ExynosVideoErrorType MFC_Decoder_Register_Outbuf(
                 pCtx->pOutbuf[nIndex].planes[plane].addr = planes[plane].addr;
                 pCtx->pOutbuf[nIndex].planes[plane].allocSize = planes[plane].allocSize;
                 pCtx->pOutbuf[nIndex].planes[plane].fd = planes[plane].fd;
+                ALOGV("%s: registered buf %d[%d]:(addr=%p alloc_sz=%d fd=%d)\n",
+                      __func__, nIndex, plane, planes[plane].addr, planes[plane].allocSize, planes[plane].fd);
             }
             pCtx->pOutbuf[nIndex].bRegistered = VIDEO_TRUE;
-            ALOGV("%s: registered buf %d 0:(addr=%p alloc_sz=%d fd=%d) 1:(addr=%p alloc_sz=%d fd=%d)\n",
-                  __func__, nIndex, planes[0].addr, planes[0].allocSize, planes[0].fd,
-                  planes[1].addr, planes[1].allocSize, planes[1].fd);
+
             break;
         }
     }
@@ -1353,7 +1448,7 @@ static ExynosVideoErrorType MFC_Decoder_Clear_RegisteredBuffer_Inbuf(void *pHand
 {
     ExynosVideoDecContext *pCtx = (ExynosVideoDecContext *)pHandle;
     ExynosVideoErrorType   ret  = VIDEO_ERROR_NONE;
-    int nIndex;
+    int nIndex, plane;
 
     if (pCtx == NULL) {
         ALOGE("%s: Video context info must be supplied", __func__);
@@ -1362,8 +1457,11 @@ static ExynosVideoErrorType MFC_Decoder_Clear_RegisteredBuffer_Inbuf(void *pHand
     }
 
     for (nIndex = 0; nIndex < pCtx->nInbufs; nIndex++) {
-        pCtx->pInbuf[nIndex].planes[0].addr = NULL;
-        pCtx->pInbuf[nIndex].planes[0].fd = -1;
+        for (plane = 0; plane < pCtx->nInbufPlanes; plane++) {
+            pCtx->pInbuf[nIndex].planes[plane].addr = NULL;
+            pCtx->pInbuf[nIndex].planes[plane].fd = -1;
+        }
+
         pCtx->pInbuf[nIndex].bRegistered = VIDEO_FALSE;
     }
 
@@ -1375,7 +1473,7 @@ static ExynosVideoErrorType MFC_Decoder_Clear_RegisteredBuffer_Outbuf(void *pHan
 {
     ExynosVideoDecContext *pCtx = (ExynosVideoDecContext *)pHandle;
     ExynosVideoErrorType   ret  = VIDEO_ERROR_NONE;
-    int nIndex;
+    int nIndex, plane;
 
     if (pCtx == NULL) {
         ALOGE("%s: Video context info must be supplied", __func__);
@@ -1384,8 +1482,10 @@ static ExynosVideoErrorType MFC_Decoder_Clear_RegisteredBuffer_Outbuf(void *pHan
     }
 
     for (nIndex = 0; nIndex < pCtx->nOutbufs; nIndex++) {
-        pCtx->pOutbuf[nIndex].planes[0].addr = NULL;
-        pCtx->pOutbuf[nIndex].planes[0].fd = -1;
+        for (plane = 0; plane < pCtx->nOutbufPlanes; plane++) {
+            pCtx->pOutbuf[nIndex].planes[plane].addr = NULL;
+            pCtx->pOutbuf[nIndex].planes[plane].fd = -1;
+        }
         pCtx->pOutbuf[nIndex].bRegistered = VIDEO_FALSE;
     }
 
@@ -1467,7 +1567,7 @@ static ExynosVideoErrorType MFC_Decoder_Enqueue_Inbuf(
     ExynosVideoErrorType   ret  = VIDEO_ERROR_NONE;
     pthread_mutex_t       *pMutex = NULL;
 
-    struct v4l2_plane  planes[VIDEO_DECODER_INBUF_PLANES];
+    struct v4l2_plane  planes[VIDEO_BUFFER_MAX_PLANES];
     struct v4l2_buffer buf;
     int index, i;
 
@@ -1477,9 +1577,9 @@ static ExynosVideoErrorType MFC_Decoder_Enqueue_Inbuf(
         goto EXIT;
     }
 
-    if (VIDEO_DECODER_INBUF_PLANES < nPlanes) {
+    if (pCtx->nInbufPlanes < nPlanes) {
         ALOGE("%s: Number of max planes : %d, nPlanes : %d", __func__,
-                                    VIDEO_DECODER_INBUF_PLANES, nPlanes);
+                                    pCtx->nInbufPlanes, nPlanes);
         ret = VIDEO_ERROR_BADPARAM;
         goto EXIT;
     }
@@ -1488,7 +1588,7 @@ static ExynosVideoErrorType MFC_Decoder_Enqueue_Inbuf(
 
     buf.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
     buf.m.planes = planes;
-    buf.length = VIDEO_DECODER_INBUF_PLANES;
+    buf.length = pCtx->nInbufPlanes;
 
     pMutex = (pthread_mutex_t*)pCtx->pInMutex;
     pthread_mutex_lock(pMutex);
@@ -1563,7 +1663,7 @@ static ExynosVideoErrorType MFC_Decoder_Enqueue_Outbuf(
     ExynosVideoErrorType   ret  = VIDEO_ERROR_NONE;
     pthread_mutex_t       *pMutex = NULL;
 
-    struct v4l2_plane  planes[VIDEO_DECODER_OUTBUF_PLANES];
+    struct v4l2_plane  planes[VIDEO_BUFFER_MAX_PLANES];
     struct v4l2_buffer buf;
     int i, index;
 
@@ -1573,9 +1673,9 @@ static ExynosVideoErrorType MFC_Decoder_Enqueue_Outbuf(
         goto EXIT;
     }
 
-    if (VIDEO_DECODER_OUTBUF_PLANES < nPlanes) {
+    if (pCtx->nOutbufPlanes < nPlanes) {
         ALOGE("%s: Number of max planes : %d, nPlanes : %d", __func__,
-                                    VIDEO_DECODER_OUTBUF_PLANES, nPlanes);
+                                    pCtx->nOutbufPlanes, nPlanes);
         ret = VIDEO_ERROR_BADPARAM;
         goto EXIT;
     }
@@ -1583,7 +1683,7 @@ static ExynosVideoErrorType MFC_Decoder_Enqueue_Outbuf(
     memset(&buf, 0, sizeof(buf));
     buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
     buf.m.planes = planes;
-    buf.length = VIDEO_DECODER_OUTBUF_PLANES;
+    buf.length = pCtx->nOutbufPlanes;
 
     pMutex = (pthread_mutex_t*)pCtx->pOutMutex;
     pthread_mutex_lock(pMutex);
@@ -1641,6 +1741,7 @@ static ExynosVideoBuffer *MFC_Decoder_Dequeue_Inbuf(void *pHandle)
     ExynosVideoBuffer     *pInbuf   = NULL;
 
     struct v4l2_buffer buf;
+    struct v4l2_plane  planes[VIDEO_BUFFER_MAX_PLANES];
 
     if (pCtx == NULL) {
         ALOGE("%s: Video context info must be supplied", __func__);
@@ -1655,6 +1756,8 @@ static ExynosVideoBuffer *MFC_Decoder_Dequeue_Inbuf(void *pHandle)
     memset(&buf, 0, sizeof(buf));
 
     buf.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
+    buf.m.planes = planes;
+    buf.length = pCtx->nInbufPlanes;
 
     if (pCtx->bShareInbuf == VIDEO_TRUE)
         buf.memory = pCtx->nMemoryType;
@@ -1667,6 +1770,11 @@ static ExynosVideoBuffer *MFC_Decoder_Dequeue_Inbuf(void *pHandle)
     }
 
     pInbuf = &pCtx->pInbuf[buf.index];
+    if (pInbuf->bQueued == VIDEO_FALSE) {
+        pInbuf = NULL;
+        goto EXIT;
+    }
+
     pCtx->pInbuf[buf.index].bQueued = VIDEO_FALSE;
 
     if (pCtx->bStreamonInbuf == VIDEO_FALSE)
@@ -1685,6 +1793,8 @@ static ExynosVideoBuffer *MFC_Decoder_Dequeue_Outbuf(void *pHandle)
     ExynosVideoBuffer     *pOutbuf = NULL;
 
     struct v4l2_buffer buf;
+    struct v4l2_plane  planes[VIDEO_BUFFER_MAX_PLANES];
+
     int value = 0, state = 0;
     int ret = 0;
 
@@ -1700,6 +1810,8 @@ static ExynosVideoBuffer *MFC_Decoder_Dequeue_Outbuf(void *pHandle)
 
     memset(&buf, 0, sizeof(buf));
     buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+    buf.m.planes = planes;
+    buf.length = pCtx->nOutbufPlanes;
 
     if (pCtx->bShareOutbuf == VIDEO_TRUE)
         buf.memory = pCtx->nMemoryType;
@@ -1722,6 +1834,11 @@ static ExynosVideoBuffer *MFC_Decoder_Dequeue_Outbuf(void *pHandle)
     }
 
     pOutbuf = &pCtx->pOutbuf[buf.index];
+    if (pOutbuf->bQueued == VIDEO_FALSE) {
+        pOutbuf = NULL;
+        ret = VIDEO_ERROR_NOBUFFERS;
+        goto EXIT;
+    }
 
     exynos_v4l2_g_ctrl(pCtx->hDec, V4L2_CID_MPEG_MFC51_VIDEO_DISPLAY_STATUS, &value);
 
@@ -1848,8 +1965,10 @@ static ExynosVideoErrorType MFC_Decoder_Cleanup_Buffer_Inbuf(void *pHandle)
 
     pCtx->nInbufs = (int)req.count;
 
-    if (pCtx->pInbuf != NULL)
+    if (pCtx->pInbuf != NULL) {
         free(pCtx->pInbuf);
+        pCtx->pInbuf = NULL;
+    }
 
 EXIT:
     return ret;
@@ -1891,8 +2010,10 @@ static ExynosVideoErrorType MFC_Decoder_Cleanup_Buffer_Outbuf(void *pHandle)
 
     pCtx->nOutbufs = (int)req.count;
 
-    if (pCtx->pOutbuf != NULL)
+    if (pCtx->pOutbuf != NULL) {
         free(pCtx->pOutbuf);
+        pCtx->pOutbuf = NULL;
+    }
 
 EXIT:
     return ret;
@@ -1929,6 +2050,166 @@ EXIT:
 }
 
 /*
+ * [Encoder Buffer OPS] FindIndex (Input)
+ */
+static int MFC_Decoder_FindEmpty_Inbuf(void *pHandle)
+{
+    ExynosVideoDecContext *pCtx = (ExynosVideoDecContext *)pHandle;
+    int nIndex = -1;
+
+    if (pCtx == NULL) {
+        ALOGE("%s: Video context info must be supplied", __func__);
+        goto EXIT;
+    }
+
+    for (nIndex = 0; nIndex < pCtx->nInbufs; nIndex++) {
+        if (pCtx->pInbuf[nIndex].bQueued == VIDEO_FALSE)
+            break;
+    }
+
+    if (nIndex == pCtx->nInbufs)
+        nIndex = -1;
+
+EXIT:
+    return nIndex;
+}
+
+/*
+ * [Encoder Buffer OPS] ExtensionEnqueue (Input)
+ */
+static ExynosVideoErrorType MFC_Decoder_ExtensionEnqueue_Inbuf(
+    void          *pHandle,
+    unsigned char *pBuffer[],
+    unsigned int  *pFd[],
+    unsigned int   allocLen[],
+    unsigned int   dataSize[],
+    int            nPlanes,
+    void          *pPrivate)
+{
+    ExynosVideoDecContext *pCtx   = (ExynosVideoDecContext *)pHandle;
+    ExynosVideoErrorType   ret    = VIDEO_ERROR_NONE;
+    pthread_mutex_t       *pMutex = NULL;
+
+    struct v4l2_plane  planes[VIDEO_BUFFER_MAX_PLANES];
+    struct v4l2_buffer buf;
+    int index, i;
+
+    if (pCtx == NULL) {
+        ALOGE("%s: Video context info must be supplied", __func__);
+        ret = VIDEO_ERROR_BADPARAM;
+        goto EXIT;
+    }
+
+    if (pCtx->nInbufPlanes < nPlanes) {
+        ALOGE("%s: Number of max planes : %d, nPlanes : %d", __func__,
+                                    pCtx->nInbufPlanes, nPlanes);
+        ret = VIDEO_ERROR_BADPARAM;
+        goto EXIT;
+    }
+
+    memset(&buf, 0, sizeof(buf));
+
+    buf.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
+    buf.m.planes = planes;
+    buf.length = pCtx->nInbufPlanes;
+
+    pMutex = (pthread_mutex_t*)pCtx->pInMutex;
+    pthread_mutex_lock(pMutex);
+    index = MFC_Decoder_FindEmpty_Inbuf(pCtx);
+    if (index == -1) {
+        pthread_mutex_unlock(pMutex);
+        ALOGE("%s: Failed to get index", __func__);
+        ret = VIDEO_ERROR_NOBUFFERS;
+        goto EXIT;
+    }
+
+    buf.index = index;
+    pCtx->pInbuf[buf.index].bQueued = VIDEO_TRUE;
+    pthread_mutex_unlock(pMutex);
+
+    buf.memory = pCtx->nMemoryType;
+    for (i = 0; i < nPlanes; i++) {
+        if (buf.memory == V4L2_MEMORY_USERPTR)
+            buf.m.planes[i].m.userptr = (unsigned long)pBuffer[i];
+        else
+            buf.m.planes[i].m.fd = (unsigned int)pFd[i];
+
+        buf.m.planes[i].length = allocLen[i];
+        buf.m.planes[i].bytesused = dataSize[i];
+
+        /* Temporary storage for Dequeue */
+        pCtx->pInbuf[buf.index].planes[i].addr = (unsigned long)pBuffer[i];
+        pCtx->pInbuf[buf.index].planes[i].fd = (unsigned int)pFd[i];
+        pCtx->pInbuf[buf.index].planes[i].allocSize = allocLen[i];
+    }
+
+    if ((((OMX_BUFFERHEADERTYPE *)pPrivate)->nFlags & OMX_BUFFERFLAG_EOS) == OMX_BUFFERFLAG_EOS) {
+        buf.input = LAST_FRAME;
+        ALOGD("%s: OMX_BUFFERFLAG_EOS => LAST_FRAME: 0x%x", __func__, buf.input);
+    }
+
+    signed long long sec  = (((OMX_BUFFERHEADERTYPE *)pPrivate)->nTimeStamp / 1E6);
+    signed long long usec = (((OMX_BUFFERHEADERTYPE *)pPrivate)->nTimeStamp) - (sec * 1E6);
+    buf.timestamp.tv_sec  = (long)sec;
+    buf.timestamp.tv_usec = (long)usec;
+
+    if (exynos_v4l2_qbuf(pCtx->hDec, &buf) != 0) {
+        ALOGE("%s: Failed to enqueue input buffer", __func__);
+        pCtx->pInbuf[buf.index].bQueued = VIDEO_FALSE;
+        ret = VIDEO_ERROR_APIFAIL;
+        goto EXIT;
+    }
+
+    pCtx->pInbuf[buf.index].pPrivate = pPrivate;
+
+EXIT:
+    return ret;
+}
+
+/*
+ * [Encoder Buffer OPS] ExtensionDequeue (Input)
+ */
+static ExynosVideoErrorType MFC_Decoder_ExtensionDequeue_Inbuf(
+    void              *pHandle,
+    ExynosVideoBuffer *pVideoBuffer)
+{
+    ExynosVideoDecContext *pCtx = (ExynosVideoDecContext *)pHandle;
+    ExynosVideoErrorType   ret  = VIDEO_ERROR_NONE;
+
+    struct v4l2_buffer buf;
+
+    if (pCtx == NULL) {
+        ALOGE("%s: Video context info must be supplied", __func__);
+        ret = VIDEO_ERROR_BADPARAM;
+        goto EXIT;
+    }
+
+    if (pCtx->bStreamonInbuf == VIDEO_FALSE) {
+        ret = VIDEO_ERROR_APIFAIL;
+        goto EXIT;
+    }
+
+    memset(&buf, 0, sizeof(buf));
+    buf.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
+    buf.memory = pCtx->nMemoryType;
+    if (exynos_v4l2_dqbuf(pCtx->hDec, &buf) != 0) {
+        ret = VIDEO_ERROR_APIFAIL;
+        goto EXIT;
+    }
+
+    if (pCtx->pInbuf[buf.index].bQueued == VIDEO_TRUE)
+        memcpy(pVideoBuffer, &pCtx->pInbuf[buf.index], sizeof(ExynosVideoBuffer));
+    else
+        ret = VIDEO_ERROR_NOBUFFERS;
+    memset(&pCtx->pInbuf[buf.index], 0, sizeof(ExynosVideoBuffer));
+
+    pCtx->pInbuf[buf.index].bQueued = VIDEO_FALSE;
+
+EXIT:
+    return ret;
+}
+
+/*
  * [Decoder OPS] Common
  */
 static ExynosVideoDecOps defDecOps = {
@@ -1946,6 +2227,8 @@ static ExynosVideoDecOps defDecOps = {
     .Get_FramePackingInfo   = MFC_Decoder_Get_FramePackingInfo,
     .Set_ImmediateDisplay   = MFC_Decoder_Set_ImmediateDisplay,
     .Enable_DTSMode         = MFC_Decoder_Enable_DTSMode,
+    .Set_QosRatio           = MFC_Decoder_Set_QosRatio,
+    .Enable_DualDPBMode     = MFC_Decoder_Enable_DualDPBMode,
 };
 
 /*
@@ -1969,6 +2252,8 @@ static ExynosVideoDecBufferOps defInbufOps = {
     .Clear_Queue            = MFC_Decoder_Clear_Queued_Inbuf,
     .Cleanup_Buffer         = MFC_Decoder_Cleanup_Buffer_Inbuf,
     .Apply_RegisteredBuffer = NULL,
+    .ExtensionEnqueue       = MFC_Decoder_ExtensionEnqueue_Inbuf,
+    .ExtensionDequeue       = MFC_Decoder_ExtensionDequeue_Inbuf,
 };
 
 /*
@@ -1992,6 +2277,8 @@ static ExynosVideoDecBufferOps defOutbufOps = {
     .Clear_Queue            = MFC_Decoder_Clear_Queued_Outbuf,
     .Cleanup_Buffer         = MFC_Decoder_Cleanup_Buffer_Outbuf,
     .Apply_RegisteredBuffer = MFC_Decoder_Apply_RegisteredBuffer_Outbuf,
+    .ExtensionEnqueue       = NULL,
+    .ExtensionDequeue       = NULL,
 };
 
 int Exynos_Video_Register_Decoder(

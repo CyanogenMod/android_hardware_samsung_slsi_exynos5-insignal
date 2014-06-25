@@ -22,12 +22,10 @@ exynos5_dirs := \
 	libcodec \
 	libion_exynos \
 	libgscaler \
-	librotator \
 	libswconverter \
 	libhwcService \
 	libkeymaster \
-	libsecurepath \
-	libcec
+	libsecurepath
 
 ifeq ($(BOARD_TV_PRIMARY), true)
 exynos5_dirs += \
@@ -35,6 +33,11 @@ exynos5_dirs += \
 else
 exynos5_dirs += \
        libhwc
+endif
+
+ifeq ($(BOARD_USES_SCALER), true)
+exynos5_dirs += \
+	libscaler
 endif
 
 include $(call all-named-subdir-makefiles,$(exynos5_dirs))

@@ -31,6 +31,7 @@
 #define ION_EXYNOS_GSC_MASK		(1 << 27)
 #define ION_EXYNOS_MFC_OUTPUT_MASK    (1 << 26)
 #define ION_EXYNOS_MFC_INPUT_MASK    (1 << 25)
+#define ION_EXYNOS_VIDEO_MASK     (1 << 21)
 
 
 /* ION_MSYNC_FLAGS

@@ -1,4 +1,4 @@
-# Copyright (C) 2012 The Android Open Source Project
+# Copyright (C) 2013 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,14 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+ifeq ($(filter-out exynos5,$(TARGET_BOARD_PLATFORM)),)
+
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
-LOCAL_MODULE_TAGS := eng
-
 LOCAL_PRELINK_MODULE := false
-LOCAL_SHARED_LIBRARIES := liblog
-LOCAL_SRC_FILES := libcec.c
+LOCAL_SHARED_LIBRARIES := liblog libutils libcutils libexynosutils libexynosv4l2
 
-LOCAL_MODULE := libcec
+LOCAL_C_INCLUDES := \
+	$(LOCAL_PATH)/../include \
+	$(TOP)/hardware/samsung_slsi/exynos/include \
+	$(TOP)/hardware/samsung_slsi/exynos/libexynosutils
+
+LOCAL_SRC_FILES := libscaler.cpp
+
+LOCAL_MODULE_TAGS := eng
+LOCAL_MODULE := libexynosscaler
 include $(BUILD_SHARED_LIBRARY)
+
+endif

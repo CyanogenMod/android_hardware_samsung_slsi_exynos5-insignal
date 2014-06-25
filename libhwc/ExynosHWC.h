@@ -58,15 +58,30 @@
 #include <linux/videodev2.h>
 #ifdef USE_FB_PHY_LINEAR
 const size_t NUM_HW_WIN_FB_PHY = 2;
-#undef DUAL_VIDEO_OVERLAY_SUPORT
+#undef DUAL_VIDEO_OVERLAY_SUPPORT
 #endif
+
+#ifndef FIMD_WORD_SIZE_BYTES
+#define FIMD_WORD_SIZE_BYTES   8
+#endif
+
+#ifndef FIMD_BURSTLEN
+#define FIMD_BURSTLEN   16
+#endif
+
 const size_t NUM_HW_WINDOWS = 5;
 const size_t NO_FB_NEEDED = NUM_HW_WINDOWS + 1;
-const size_t MAX_PIXELS = 2560 * 1600 * 2;
+#ifndef FIMD_BW_OVERLAP_CHECK
+const size_t MAX_NUM_FIMD_DMA_CH = 2;
+const int FIMD_DMA_CH_IDX[NUM_HW_WINDOWS] = {0, 1, 1, 1, 0};
+//int FIMD_DMA_CH_BW[MAX_NUM_FIMD_DMA_CH] = {2560 * 1600, 2560 * 1600};
+//int FIMD_DMA_CH_OVERLAP_CNT[MAX_NUM_FIMD_DMA_CH] = {1, 1};
+#endif
+
 const size_t GSC_W_ALIGNMENT = 16;
 const size_t GSC_H_ALIGNMENT = 16;
 const size_t GSC_DST_H_ALIGNMENT_RGB888 = 1;
-#ifdef DUAL_VIDEO_OVERLAY_SUPORT
+#ifdef DUAL_VIDEO_OVERLAY_SUPPORT
 const size_t FIMD_GSC_IDX = 0;
 const size_t FIMD_GSC_SEC_IDX = 1;
 const size_t FIMD_GSC_SBS_IDX = 2;
@@ -77,7 +92,11 @@ const size_t HDMI_GSC_SBS_IDX = 5;
 const size_t HDMI_GSC_TB_IDX = 6;
 const int FIMD_GSC_USAGE_IDX[] = {FIMD_GSC_IDX, FIMD_GSC_SEC_IDX,
                                                     FIMD_GSC_SBS_IDX, FIMD_GSC_TB_IDX};
+#ifndef USES_ONLY_GSC0_GSC1
 const int AVAILABLE_GSC_UNITS[] = { 0, 3, 0, 0, 3, 3, 3 };
+#else
+const int AVAILABLE_GSC_UNITS[] = { 0, 1, 0, 0, 1, 1, 1 };
+#endif
 #else
 const size_t FIMD_GSC_IDX = 0;
 const size_t HDMI_GSC_IDX = 1;
@@ -85,13 +104,16 @@ const size_t FIMD_GSC_SBS_IDX = 2;
 const size_t FIMD_GSC_TB_IDX = 3;
 const size_t HDMI_GSC_SBS_IDX = 4;
 const size_t HDMI_GSC_TB_IDX = 5;
+#ifndef USES_ONLY_GSC0_GSC1
 const int AVAILABLE_GSC_UNITS[] = { 0, 3, 0, 0, 3, 3 };
+#else
+const int AVAILABLE_GSC_UNITS[] = { 0, 1, 0, 0, 1, 1 };
+#endif
 #endif
 const size_t NUM_GSC_UNITS = sizeof(AVAILABLE_GSC_UNITS) /
         sizeof(AVAILABLE_GSC_UNITS[0]);
-const size_t BURSTLEN_BYTES = 16 * 8;
+const size_t BURSTLEN_BYTES = FIMD_BURSTLEN * FIMD_WORD_SIZE_BYTES;
 const size_t NUM_HDMI_BUFFERS = 3;
-#define DIRECT_FB_SRC_BUF_WA
 
 #ifdef SKIP_STATIC_LAYER_COMP
 #define NUM_VIRT_OVER   5
@@ -101,18 +123,13 @@ const size_t NUM_HDMI_BUFFERS = 3;
 #define NUM_VIRT_OVER_HDMI 5
 #endif
 
-#ifdef HWC_SERVICES
-#include "../libhwcService/ExynosHWCService.h"
-namespace android {
-class ExynosHWCService;
-}
-#endif
-
 #define GSC_SKIP_DUPLICATE_FRAME_PROCESSING
+
+#define HWC_PAGE_MISS_TH  5
 
 #ifdef HWC_DYNAMIC_RECOMPOSITION
 #define HWC_FIMD_BW_TH  1   /* valid range 1 to 5 */
-#define HWC_FPS_TH          3    /* valid range 1 to 60 */
+#define HWC_FPS_TH          5    /* valid range 1 to 60 */
 #define VSYNC_INTERVAL (1000000000.0 / 60)
 typedef enum _COMPOS_MODE_SWITCH {
     NO_MODE_SWITCH,
@@ -174,9 +191,12 @@ const size_t NUM_GSC_DST_BUFS = 3;
 struct exynos5_gsc_data_t {
     void            *gsc;
     exynos_gsc_img  src_cfg;
+    exynos_gsc_img  mid_cfg;
     exynos_gsc_img  dst_cfg;
     buffer_handle_t dst_buf[NUM_GSC_DST_BUFS];
+    buffer_handle_t mid_buf[NUM_GSC_DST_BUFS];
     int             dst_buf_fence[NUM_GSC_DST_BUFS];
+    int             mid_buf_fence[NUM_GSC_DST_BUFS];
     size_t          current_buf;
 #ifdef SUPPORT_GSC_LOCAL_PATH
     int             gsc_mode;
@@ -197,43 +217,8 @@ struct hdmi_layer_t {
     size_t  queued_buf;
 };
 
-#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USES_WFD)
+#if defined(USES_WFD)
 #include "FimgApi.h"
-#endif
-
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
-#define HWC_SKIP_HDMI_RENDERING 0x80000000
-
-const size_t NUM_COMPOSITE_BUFFER_FOR_EXTERNAL = 4;
-const size_t NUM_BUFFER_U4A = 3;
-
-struct sec_rect {
-    int32_t x;
-    int32_t y;
-    int32_t w;
-    int32_t h;
-};
-
-struct s3cfb_user_window {
-    int x;
-    int y;
-};
-
-struct s3cfb_extdsp_time_stamp {
-    int     y_fd;
-    int     uv_fd;
-    struct timeval  time_marker;
-};
-
-#define EXYNOS5_U4A_FB_DEV              "/dev/graphics/fb1"
-#define S3CFB_EXTDSP_PUT_FD             _IOW ('F', 323, struct s3cfb_extdsp_time_stamp)
-
-struct FB_TARGET_Info {
-    int32_t         fd;
-    unsigned int    mapped_addr;
-    int             map_size;
-};
-#define NUM_FB_TARGET 4
 #endif
 
 struct exynos5_hwc_composer_device_1_t {
@@ -276,7 +261,8 @@ struct exynos5_hwc_composer_device_1_t {
     bool mPresentationMode;
     int wfd_skipping;
     int wfd_sleepctrl;
-
+    int wfd_force_transform;
+    struct v4l2_rect wfd_disp_rect;
 #endif
 
     hdmi_layer_t            hdmi_layers[2];
@@ -299,7 +285,6 @@ struct exynos5_hwc_composer_device_1_t {
 #define HDMI_PRESET_DEFAULT V4L2_DV_1080P60
 #define HDMI_PRESET_ERROR -1
 
-    android::ExynosHWCService   *mHWCService;
     int mHdmiPreset;
     int mHdmiCurrentPreset;
     bool mHdmiResolutionChanged;
@@ -323,6 +308,7 @@ struct exynos5_hwc_composer_device_1_t {
     pthread_t   vsync_stat_thread;
     int vsyn_event_cnt;
     int invalid_trigger;
+    volatile bool vsync_stat_thread_flag;
 #endif
 
 #if defined(USES_CEC)
@@ -346,35 +332,16 @@ struct exynos5_hwc_composer_device_1_t {
     video_layer_config      prev_dst_config;
 #endif
 
+    int                     gsc_layers;
+
     bool                    force_mirror_mode;
-    int                     hdmi_video_rotation;    /* HAL_TRANSFORM_ROT_XXX */
+    int                     ext_fbt_transform;                  /* HAL_TRANSFORM_ROT_XXX */
     bool                    external_display_pause;
     bool                    local_external_display_pause;
-    bool                    popup_play_drm_contents;
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
-    bool                    use_blocking_layer;
-    int                     num_of_ext_disp_layer;
-    int                     num_of_ext_disp_video_layer;
-    int                     num_of_ext_only_layer;
-    int                     num_of_ext_flexible_layer;
-
-    buffer_handle_t         composite_buffer_for_external[NUM_COMPOSITE_BUFFER_FOR_EXTERNAL];
-    unsigned long           va_composite_buffer_for_external[NUM_COMPOSITE_BUFFER_FOR_EXTERNAL]; /* mapped address */
-    size_t                  composite_buf_index;
-    int                     composite_buf_width;
-    int                     composite_buf_height;
-    struct sec_rect         saved_layer_for_external[4];
-    int                     saved_layer_count;
-    bool                    is_change_external_surface;
-    private_handle_t        *prev_handle_external_surfaces[5];
-    private_handle_t        *prev_handle_flexible_surfaces[5];
-    bool                    already_mapped_vfb;
-    int                     vfb_fd;
-    int                     surface_fd_for_vfb[NUM_BUFFER_U4A];  /* for ubuntu */
-    int                     num_of_ext_vfb_layer;
-    struct FB_TARGET_Info   fb_target_info[NUM_FB_TARGET];
-    private_handle_t        *prev_handle_vfb;
-#endif
+    bool                    popup_play_yuv_contents;
+    bool                    contents_has_drm_surface;
+    bool                    contents_has_crop_surface;
+    int                     num_of_yuv_layer;
 
     int  is_fb_layer;
     int  is_video_layer;
@@ -382,10 +349,14 @@ struct exynos5_hwc_composer_device_1_t {
     int  video_started;
 
 #ifdef GSC_VIDEO
-    const void              *last_lay_hnd_hdmi[NUM_VIRT_OVER];
+    const void              *last_lay_hnd_hdmi[NUM_VIRT_OVER_HDMI];
     int                     virtual_ovly_flag_hdmi;
 #endif
 
+    bool                    need_gsc_op_twice;
+    bool                    bypass_skip_static_layer;
+    int                     fimd_dma_chan_max_bw[MAX_NUM_FIMD_DMA_CH];
+    int                     fimd_dma_chan_max_overlap_cnt[MAX_NUM_FIMD_DMA_CH];
 };
 
 #if defined(HWC_SERVICES)

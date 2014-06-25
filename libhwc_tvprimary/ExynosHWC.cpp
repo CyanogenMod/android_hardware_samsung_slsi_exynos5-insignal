@@ -170,8 +170,6 @@ static enum s3c_fb_pixel_format exynos5_format_to_s3c_format(int format)
         return S3C_FB_PIXEL_FORMAT_RGBA_8888;
     case HAL_PIXEL_FORMAT_RGBX_8888:
         return S3C_FB_PIXEL_FORMAT_RGBX_8888;
-    case HAL_PIXEL_FORMAT_RGBA_5551:
-        return S3C_FB_PIXEL_FORMAT_RGBA_5551;
     case HAL_PIXEL_FORMAT_RGB_565:
         return S3C_FB_PIXEL_FORMAT_RGB_565;
     case HAL_PIXEL_FORMAT_BGRA_8888:
@@ -198,8 +196,6 @@ static bool exynos5_format_is_rgb(int format)
     case HAL_PIXEL_FORMAT_RGB_888:
     case HAL_PIXEL_FORMAT_RGB_565:
     case HAL_PIXEL_FORMAT_BGRA_8888:
-    case HAL_PIXEL_FORMAT_RGBA_5551:
-    case HAL_PIXEL_FORMAT_RGBA_4444:
 #ifdef EXYNOS_SUPPORT_BGRX_8888
     case HAL_PIXEL_FORMAT_BGRX_8888:
 #endif
@@ -250,8 +246,6 @@ static uint8_t exynos5_format_to_bpp(int format)
 #endif
         return 32;
 
-    case HAL_PIXEL_FORMAT_RGBA_5551:
-    case HAL_PIXEL_FORMAT_RGBA_4444:
     case HAL_PIXEL_FORMAT_RGB_565:
         return 16;
 
@@ -587,7 +581,7 @@ static bool exynos5_blending_is_supported(int32_t blending)
     return exynos5_blending_to_s3c_blending(blending) < S3C_FB_BLENDING_MAX;
 }
 
-#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USES_WFD) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
+#if defined(USES_WFD) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
 static inline rotation rotateValueHAL2G2D(unsigned char transform)
 {
     int rotate_flag = transform & 0x7;
@@ -614,11 +608,6 @@ static unsigned int formatValueHAL2G2D(int hal_format,
     case HAL_PIXEL_FORMAT_RGB_565:
         *g2d_format = CF_RGB_565;
         *g2d_order  = AX_RGB;
-        *g2d_bpp    = 2;
-        break;
-    case HAL_PIXEL_FORMAT_RGBA_4444:
-        *g2d_format = CF_ARGB_4444;
-        *g2d_order  = AX_BGR;
         *g2d_bpp    = 2;
         break;
         /* 32bpp */
@@ -847,7 +836,7 @@ int runCompositor(exynos5_hwc_composer_device_1_t *pdev,
 }
 #endif
 
-#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
+#if defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
 static unsigned long get_mapped_addr_fb_target(exynos5_hwc_composer_device_1_t *pdev, int fd)
 {
     for (int i = 0; i < NUM_FB_TARGET; i++) {
@@ -1075,7 +1064,7 @@ static void hdmi_disable(struct exynos5_hwc_composer_device_1_t *dev)
     hdmi_disable_layer(dev, dev->hdmi_layers[1]);
 
     exynos5_cleanup_gsc_m2m(dev, HDMI_GSC_IDX);
-#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
+#if defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
     for (size_t i = 0; i < NUM_COMPOSITE_BUFFER_FOR_EXTERNAL; i++) {
         ion_unmap((void *)dev->va_composite_buffer_for_external[i],
                 dev->composite_buf_width * dev->composite_buf_height * 4);
@@ -1808,13 +1797,6 @@ retry:
         if (layer.handle) {
             private_handle_t *handle = private_handle_t::dynamicCast(layer.handle);
 
-        /* external surfaces should not use overlay */
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
-            if (!(handle->flags & GRALLOC_USAGE_EXTERNAL_FLEXIBLE) &&
-                    !(handle->flags & GRALLOC_USAGE_EXTERNAL_ONLY) &&
-                    !(handle->flags & GRALLOC_USAGE_EXTERNAL_VIRTUALFB)) {
-#endif
-
 #if defined(FORCE_YUV_OVERLAY)
             if (!pdev->popup_play_drm_contents ||
                 (pdev->popup_play_drm_contents && (popup_drm_lay_idx == i))) {
@@ -1839,9 +1821,6 @@ retry:
                     continue;
                 }
 #if defined(FORCE_YUV_OVERLAY)
-            }
-#endif
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
             }
 #endif
         }
@@ -2103,23 +2082,6 @@ retry:
     else
         pdev->bufs.fb_window = NO_FB_NEEDED;
 
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
-    pdev->saved_layer_count = 0;
-    for (size_t i = 0; i < contents->numHwLayers; i++) {
-        hwc_layer_1_t &layer = contents->hwLayers[i];
-        private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
-
-        /* save EXTERNAL_FLEXIBLE surface`s displayFrame geometry, it will be used to display HDMI */
-        if (h && (h->flags & GRALLOC_USAGE_EXTERNAL_FLEXIBLE)) {
-            pdev->saved_layer_for_external[pdev->saved_layer_count].x = layer.displayFrame.left;
-            pdev->saved_layer_for_external[pdev->saved_layer_count].y = layer.displayFrame.top;
-            pdev->saved_layer_for_external[pdev->saved_layer_count].w = WIDTH(layer.displayFrame);
-            pdev->saved_layer_for_external[pdev->saved_layer_count].h = HEIGHT(layer.displayFrame);
-            pdev->saved_layer_count++;
-        }
-    }
-#endif
-
     return 0;
 }
 
@@ -2268,56 +2230,6 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 
     pdev->force_mirror_mode = false;
     pdev->num_of_protected_layer = 0;
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
-    pdev->use_blocking_layer = false;
-    pdev->num_of_ext_disp_layer = 0;
-    pdev->num_of_ext_disp_video_layer = 0;
-    pdev->num_of_ext_only_layer = 0;
-    pdev->num_of_ext_flexible_layer = 0;
-    int used_layer_count = 0;
-    pdev->is_change_external_surface = false;
-    pdev->num_of_ext_vfb_layer = 0;
-
-    pdev->local_external_display_pause = pdev->external_display_pause;
-
-    /* summerize layer`s information */
-    for (size_t i = 0; i < contents->numHwLayers; i++) {
-        hwc_layer_1_t &layer = contents->hwLayers[i];
-        if (layer.handle) {
-            private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
-            if ((h->flags & GRALLOC_USAGE_EXTERNAL_ONLY) ||
-#if defined(GSC_VIDEO)
-                (h->flags & GRALLOC_USAGE_EXTERNAL_DISP) ||
-#endif
-                (h->flags & GRALLOC_USAGE_EXTERNAL_VIRTUALFB) ||
-                (h->flags & GRALLOC_USAGE_EXTERNAL_FLEXIBLE)) {
-                pdev->num_of_ext_disp_layer++;
-                if (h->flags & GRALLOC_USAGE_EXTERNAL_ONLY) {
-                    if (pdev->prev_handle_external_surfaces[pdev->num_of_ext_only_layer] != h) {
-                        pdev->prev_handle_external_surfaces[pdev->num_of_ext_only_layer] = h;
-                        pdev->is_change_external_surface = true;
-                    }
-                    pdev->num_of_ext_only_layer++;
-                } else if (h->flags & GRALLOC_USAGE_EXTERNAL_FLEXIBLE) {
-                    if (pdev->prev_handle_flexible_surfaces[pdev->num_of_ext_flexible_layer] != h) {
-                        pdev->prev_handle_flexible_surfaces[pdev->num_of_ext_flexible_layer] = h;
-                        pdev->is_change_external_surface = true;
-                    }
-                    pdev->num_of_ext_flexible_layer++;
-                } else if (h->flags & GRALLOC_USAGE_EXTERNAL_VIRTUALFB) {
-                    pdev->num_of_ext_vfb_layer++;
-                }
-            }
-            if (h->flags & GRALLOC_USAGE_PROTECTED)
-                pdev->num_of_protected_layer++;
-            if (h->flags & GRALLOC_USAGE_EXTERNAL_BLOCK)
-                pdev->use_blocking_layer = true;
-        }
-    }
-
-    if (!pdev->num_of_ext_disp_layer)
-        pdev->force_mirror_mode = true;
-#endif
     for (size_t i = 0; i < contents->numHwLayers; i++) {
         hwc_layer_1_t &layer = contents->hwLayers[i];
 
@@ -2334,183 +2246,32 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 
         if (layer.handle) {
             private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
-            /*
-             * Note: The following sections enclosed in the macro GSC_VIDEO may or may
-             *       not be modified/removed at a later time
-             */
-
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
-            if (pdev->local_external_display_pause) {
-                layer.compositionType = HWC_OVERLAY;
-                layer.flags = HWC_SKIP_HDMI_RENDERING;
-                continue;
-            }
-#endif
-
-            /* IF MIRROR mode, all surfaces use G3D composition */
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
-            else if (pdev->force_mirror_mode) {
-                if (exynos5_get_drmMode(h->flags) != NO_DRM) {
-                    layer.compositionType = HWC_OVERLAY;
-                } else if (h->flags & GRALLOC_USAGE_INTERNAL_ONLY) {
-                    layer.compositionType = HWC_OVERLAY;
-                    layer.flags = HWC_SKIP_HDMI_RENDERING;
-                } else {
-                    layer.compositionType = HWC_FRAMEBUFFER;
-                }
-                continue;
-            } else {
-#endif
-                /* EXTENTION mode */
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
-#ifdef USES_U4A
-                if (pdev->num_of_ext_vfb_layer) {
-                    if (h->flags & GRALLOC_USAGE_EXTERNAL_VIRTUALFB) {
-                        if (!pdev->already_mapped_vfb) {
-                            struct s3cfb_extdsp_time_stamp time_stamp;
-                            if (pdev->surface_fd_for_vfb[0] == -1) {
-                                pdev->surface_fd_for_vfb[0] = h->fd;
-                            } else if (pdev->surface_fd_for_vfb[1] == -1) {
-                                pdev->surface_fd_for_vfb[1] = h->fd;
-                            } else if (pdev->surface_fd_for_vfb[2] == -1) {
-                                pdev->surface_fd_for_vfb[2] = h->fd;
-                                pdev->already_mapped_vfb = true;
-                            }
-                            time_stamp.y_fd = h->fd;
-                            time_stamp.uv_fd = -1;
-                            if (ioctl(pdev->vfb_fd, S3CFB_EXTDSP_PUT_FD, &(time_stamp)) < 0) {
-                                ALOGE("%s::S3CFB_EXTDSP_PUT_FD fail", __func__);
-                            }
-                        }
-                        layer.compositionType = HWC_OVERLAY;
-                        layer.flags = 0;
-                    } else {
-                        /* SKIP HDMI rendering others */
-                        layer.compositionType = HWC_OVERLAY;
-                        layer.flags = HWC_SKIP_HDMI_RENDERING;
-                    }
-                    continue;
-                }
-#endif
-                /* if there is a blocking_layer, only display it, others ignore */
-                if (pdev->use_blocking_layer) {
-                    if (h->flags & GRALLOC_USAGE_EXTERNAL_BLOCK) {
-                        if (h->flags & GRALLOC_USAGE_EXTERNAL_ONLY) {
-                            struct v4l2_rect dest_rect;
-                            hdmi_cal_dest_rect(WIDTH(layer.sourceCrop), HEIGHT(layer.sourceCrop),
-                                    pdev->hdmi_w, pdev->hdmi_h, &dest_rect);
-                            layer.displayFrame.left = dest_rect.left;
-                            layer.displayFrame.top = dest_rect.top;
-                            layer.displayFrame.right = dest_rect.width + dest_rect.left;
-                            layer.displayFrame.bottom = dest_rect.height + dest_rect.top;
-                            layer.compositionType = HWC_OVERLAY;
-                            layer.flags = 0;
-                        } else if(h->flags & GRALLOC_USAGE_EXTERNAL_FLEXIBLE) {
-                            /* if EXTERNL_FLEXIBLE surface, it use saved displayFrame geometry in prepare_fimd()*/
-                            layer.displayFrame.left = pdev->saved_layer_for_external[used_layer_count].x;
-                            layer.displayFrame.top = pdev->saved_layer_for_external[used_layer_count].y;
-                            layer.displayFrame.right = pdev->saved_layer_for_external[used_layer_count].w
-                                + pdev->saved_layer_for_external[used_layer_count].x;
-                            layer.displayFrame.bottom = pdev->saved_layer_for_external[used_layer_count].h
-                                + pdev->saved_layer_for_external[used_layer_count].y;
-                            used_layer_count++;
-                            layer.compositionType = HWC_OVERLAY;
-                            layer.flags = 0;
-                        }
-                    } else {
-                        /* SKIP HDMI rendering others */
-                        layer.compositionType = HWC_OVERLAY;
-                        layer.flags = HWC_SKIP_HDMI_RENDERING;
-                    }
-                    continue;
-                } else {
-                    if (h->flags & GRALLOC_USAGE_INTERNAL_ONLY) {
-                        layer.compositionType = HWC_OVERLAY;
-                        layer.flags = HWC_SKIP_HDMI_RENDERING;
-                        continue;
-                    }
-#endif
 
 #if defined(GSC_VIDEO)
-                    if (((exynos5_get_drmMode(h->flags) == SECURE_DRM) || (h->flags & GRALLOC_USAGE_EXTERNAL_DISP)) &&
-                        exynos5_supports_gscaler(layer, h->format, false)) {
+            if (((exynos5_get_drmMode(h->flags) == SECURE_DRM) || (h->flags & GRALLOC_USAGE_EXTERNAL_DISP)) &&
+                exynos5_supports_gscaler(layer, h->format, false)) {
 #else
-                    if (exynos5_get_drmMode(h->flags) != NO_DRM) {
+            if (exynos5_get_drmMode(h->flags) != NO_DRM) {
 #endif
 #if !defined(GSC_VIDEO)
-                            if (!video_layer) {
+                if (!video_layer) {
 #endif
-                                video_layer = &layer;
-                                layer.compositionType = HWC_OVERLAY;
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
-                                layer.flags = 0;
-#endif
+                    video_layer = &layer;
+                    layer.compositionType = HWC_OVERLAY;
 #if defined(GSC_VIDEO)
-                                videoIndex = i;
-                                numVideoLayers++;
+                    videoIndex = i;
+                    numVideoLayers++;
 #endif
-                                ALOGV("\tlayer %u: video layer", i);
-                                dump_layer(&layer);
-                                continue;
-#if !defined(GSC_VIDEO)
-                            }
-#endif
-                    }
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
-#if defined(GSC_VIDEO)
-                    if (numVideoLayers <= 1) {
-#endif
-                        if (pdev->num_of_ext_only_layer || pdev->num_of_ext_flexible_layer) {
-                            /* this surface will display external with scaling */
-                            if (h->flags & GRALLOC_USAGE_EXTERNAL_ONLY) {
-                                struct v4l2_rect dest_rect;
-                                hdmi_cal_dest_rect(WIDTH(layer.sourceCrop), HEIGHT(layer.sourceCrop),
-                                        pdev->hdmi_w, pdev->hdmi_h, &dest_rect);
-                                layer.displayFrame.left = dest_rect.left;
-                                layer.displayFrame.top = dest_rect.top;
-                                layer.displayFrame.right = dest_rect.width + dest_rect.left;
-                                layer.displayFrame.bottom = dest_rect.height + dest_rect.top;
-                                layer.compositionType = HWC_OVERLAY;
-                                layer.flags = 0;
-                            /* if EXTERNAL_FLEXIBLE surface, it use saved displayFrame geometry in prepare_fimd()*/
-                            } else if(h->flags & GRALLOC_USAGE_EXTERNAL_FLEXIBLE) {
-                                layer.compositionType = HWC_OVERLAY;
-                                layer.flags = 0;
-                                layer.displayFrame.left = pdev->saved_layer_for_external[used_layer_count].x;
-                                layer.displayFrame.top = pdev->saved_layer_for_external[used_layer_count].y;
-                                layer.displayFrame.right = pdev->saved_layer_for_external[used_layer_count].w
-                                    + pdev->saved_layer_for_external[used_layer_count].x;
-                                layer.displayFrame.bottom = pdev->saved_layer_for_external[used_layer_count].h
-                                    + pdev->saved_layer_for_external[used_layer_count].y;
-                                used_layer_count++;
-                            /* others will be skipped */
-                            } else {
-                                layer.compositionType = HWC_OVERLAY;
-                                layer.flags = HWC_SKIP_HDMI_RENDERING;
-                            }
-                        } else {
-                            if (!pdev->mUseSubtitles) {
-                                layer.compositionType = HWC_OVERLAY;
-                                layer.flags = HWC_SKIP_HDMI_RENDERING;
-                            } else {
-                                layer.compositionType = HWC_FRAMEBUFFER;
-                            }
-                        }
-
-#if defined(GSC_VIDEO)
-                    } else {
-                        layer.compositionType = HWC_FRAMEBUFFER;
-                    }
-#endif
-#endif
-
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
-                }
-            }
-#else
-                    layer.compositionType = HWC_FRAMEBUFFER;
+                    ALOGV("\tlayer %u: video layer", i);
                     dump_layer(&layer);
+                    continue;
+#if !defined(GSC_VIDEO)
+                }
 #endif
+            }
+
+            layer.compositionType = HWC_FRAMEBUFFER;
+            dump_layer(&layer);
         }
     }
 #if defined(GSC_VIDEO)
@@ -2519,12 +2280,6 @@ static int exynos5_prepare_hdmi(exynos5_hwc_composer_device_1_t *pdev,
             hwc_layer_1_t &layer = contents->hwLayers[i];
 #if defined(HWC_SERVICES)
             if (!pdev->mUseSubtitles || i == videoIndex) {
-#endif
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
-                if (i == videoIndex) {
-                    layer.compositionType = HWC_OVERLAY;
-                    layer.flags = 0;
-                }
 #endif
 #if defined(HWC_SERVICES)
             }
@@ -3310,7 +3065,7 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
     hwc_layer_1_t *fb_layer = NULL;
     hwc_layer_1_t *video_layer = NULL;
 
-#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
+#if defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
     buffer_handle_t *dst_buf;
     bool use_composite_buffer_for_external = false;
     bool need_clear_composite_buffer = true;
@@ -3339,16 +3094,6 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
             if (!layer.handle)
                 continue;
 
-
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
-            if (layer.flags & HWC_SKIP_HDMI_RENDERING) {
-                if (layer.acquireFenceFd != -1) {
-                    close(layer.acquireFenceFd);
-                    layer.acquireFenceFd = -1;
-                }
-                continue;
-            } else {
-#endif
 #if defined(GSC_VIDEO)
                 private_handle_t *handle = private_handle_t::dynamicCast(layer.handle);
                 if ((int)get_yuv_planes(HAL_PIXEL_FORMAT_2_V4L2_PIX(handle->format)) < 0 &&
@@ -3359,9 +3104,6 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                     layer.releaseFenceFd = layer.acquireFenceFd;
                     continue;
                 }
-#endif
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
-            }
 #endif
 
             ALOGV("HDMI video layer:");
@@ -3445,119 +3187,29 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                 gsc.current_buf = (gsc.current_buf + 1) % NUM_GSC_DST_BUFS;
             }
 
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
-            if (h->flags & GRALLOC_USAGE_EXTERNAL_VIRTUALFB) {
-#ifdef USES_U4A
-                if (pdev->prev_handle_vfb != h) {
-                private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
-                hwc_layer_1_t dst_layer;
-                dst_layer.displayFrame.left = 0;
-                dst_layer.displayFrame.right = pdev->hdmi_w;
-                dst_layer.displayFrame.top = 0;
-                dst_layer.displayFrame.bottom = pdev->hdmi_h;
-                layer.releaseFenceFd = layer.acquireFenceFd;
-
-                hdmi_output(pdev, pdev->hdmi_layers[0], dst_layer, h, layer.acquireFenceFd,
-                        &layer.releaseFenceFd);
-                } else {
-                    if (layer.acquireFenceFd)
-                        close(layer.acquireFenceFd);
-                    layer.releaseFenceFd = -1;
-                }
-                pdev->prev_handle_vfb = h;
-                video_layer = &layer;
-#endif
-            } else if (h->flags & GRALLOC_USAGE_EXTERNAL_FLEXIBLE) {
-                if (pdev->is_change_external_surface) {
-                    if (video_layer) {
-                        /* if subtitle , it use directyly use fb layer */
-                        private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
-                        hdmi_output(pdev, pdev->hdmi_layers[1], layer, h, layer.acquireFenceFd,
-                                &layer.releaseFenceFd);
-                        fb_layer = &layer;
-                    } else {
-                        bool clear = false;
-                        if (need_clear_composite_buffer) {
-                            clear = true;
-                            need_clear_composite_buffer = false;
-                        }
-                        dst_buf = exynos5_external_layer_composite(pdev, layer, pdev->composite_buf_index, clear);
-                        private_handle_t *dst_h = private_handle_t::dynamicCast(*dst_buf);
-
-                        hwc_layer_1_t dst_layer;
-                        dst_layer.displayFrame.left = 0;
-                        dst_layer.displayFrame.right = pdev->hdmi_w;
-                        dst_layer.displayFrame.top = 0;
-                        dst_layer.displayFrame.bottom = pdev->hdmi_h;
-
-                        hdmi_output(pdev, pdev->hdmi_layers[1], dst_layer, dst_h, layer.acquireFenceFd,
-                                &layer.releaseFenceFd);
-                        fb_layer = &layer;
-                        use_composite_buffer_for_external = true;
-                    }
-                } else {
-                    layer.releaseFenceFd = layer.acquireFenceFd;
-                    fb_layer = &layer;
-                }
-            } else if (h->flags & GRALLOC_USAGE_EXTERNAL_ONLY) {
-                if (pdev->is_change_external_surface) {
-                    bool clear = false;
-                    if (need_clear_composite_buffer) {
-                        clear = true;
-                        need_clear_composite_buffer = false;
-                    }
-                    dst_buf = exynos5_external_layer_composite(pdev, layer, pdev->composite_buf_index, clear);
-                    private_handle_t *dst_h = private_handle_t::dynamicCast(*dst_buf);
-
-                    hwc_layer_1_t dst_layer;
-                    dst_layer.displayFrame.left = 0;
-                    dst_layer.displayFrame.right = pdev->hdmi_w;
-                    dst_layer.displayFrame.top = 0;
-                    dst_layer.displayFrame.bottom = pdev->hdmi_h;
-
-                    hdmi_output(pdev, pdev->hdmi_layers[1], dst_layer, dst_h, layer.acquireFenceFd,
-                            &layer.releaseFenceFd);
-                    fb_layer = &layer;
-                    use_composite_buffer_for_external = true;
-                } else {
-                    layer.releaseFenceFd = layer.acquireFenceFd;
-                    fb_layer = &layer;
-                }
-            }
-#endif
         }
 
         if (layer.compositionType == HWC_FRAMEBUFFER_TARGET) {
-            if (!layer.handle
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
-                || !pdev->force_mirror_mode
-#endif
-               ) {
-#ifdef USE_GRALLOC_FLAG_FOR_HDMI
-                if (pdev->force_mirror_mode || !pdev->mUseSubtitles)
-#endif
+            if (!layer.handle) {
                     continue;
             }
 
             ALOGV("HDMI FB layer:");
             dump_layer(&layer);
 
-#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
+#if defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
 
             /*
              * in case of 1080P30,  memcpy to tempbuffer, and then render that
              * in case of not default hdmi resoultion, after scaling down, and then render
              * G2D not support sync fence, so we should guarante to finish G3D composition,
              */
-#if defined(USE_GRALLOC_FLAG_FOR_HDMI) && defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
+#if defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
             if ((pdev->mHdmiCurrentPreset == V4L2_DV_1080P30) ||
                 ((pdev->hdmi_w != EXYNOS5_HDMI_DEFAULT_WIDTH) || (pdev->hdmi_h != EXYNOS5_HDMI_DEFAULT_HEIGHT))) {
 #endif
 #ifndef USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI
             if (pdev->mHdmiCurrentPreset == V4L2_DV_1080P30) {
-#endif
-#ifndef USE_GRALLOC_FLAG_FOR_HDMI
-            if ((pdev->hdmi_w != EXYNOS5_HDMI_DEFAULT_WIDTH) || (pdev->hdmi_h != EXYNOS5_HDMI_DEFAULT_HEIGHT)) {
 #endif
  #ifdef FBTARGET_SYNC_WAITING
                 if (layer.acquireFenceFd >= 0) {
@@ -3583,7 +3235,7 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
                 private_handle_t *h = private_handle_t::dynamicCast(layer.handle);
                 hdmi_output(pdev, pdev->hdmi_layers[1], layer, h, layer.acquireFenceFd,
                             &layer.releaseFenceFd);
-#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
+#if defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
             }
 #endif
             fb_layer = &layer;
@@ -3598,7 +3250,7 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
         }
     }
 
-#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
+#if defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
     if (use_composite_buffer_for_external) {
         pdev->composite_buf_index++;
         if (pdev->composite_buf_index == NUM_COMPOSITE_BUFFER_FOR_EXTERNAL)
@@ -4549,10 +4201,10 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
     dev->force_gpu = atoi(value);
 
     dev->force_mirror_mode = false;
-    dev->hdmi_video_rotation = 0;
+    dev->ext_fbt_transform = 0;
     dev->external_display_pause = false;
     dev->local_external_display_pause = false;
-#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
+#if defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
     dev->use_blocking_layer = false;
     dev->composite_buf_index = 0;
 
@@ -4673,7 +4325,7 @@ static int exynos5_close(hw_device_t *device)
 #ifdef USES_WFD
     wfd_disable(dev);
 #endif
-#if defined(USE_GRALLOC_FLAG_FOR_HDMI) || defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
+#if defined(USE_G2D_SCALE_DOWN_FOR_LOW_RESOLUTION_HDMI)
     for (size_t i = 0; i < NUM_COMPOSITE_BUFFER_FOR_EXTERNAL; i++) {
         ion_unmap((void *)dev->va_composite_buffer_for_external[i],
                 dev->composite_buf_width * dev->composite_buf_height * 4);

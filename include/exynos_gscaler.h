@@ -317,45 +317,6 @@ int exynos_gsc_set_dst_addr(
 int exynos_gsc_convert(
     void *handle);
 
-/*!
- * api for local path gscaler. Not yet support.
- *
- * \ingroup exynos_gscaler
- */
-int exynos_gsc_connect(
-    void *handle,
-    void *hw);
-
-/*!
- * api for local path gscaler. Not yet support.
- *
- * \ingroup exynos_gscaler
- */
-int exynos_gsc_disconnect(
-    void *handle,
-    void *hw);
-
-/*!
- * api for reserving a specific gscaler.
- * This API could be used from any module that
- *wants to control the gscalar privately. By calling this function any
- *module can let the libgscaler know that GSC is used privately.
- *
- * \ingroup exynos_gsc_reserve
- */
- void *exynos_gsc_reserve
-    (int dev_num);
-
-
-/*!
- * api for releasing the gscaler that was reserved with
- *exynos_gsc_reserve.
- * \ingroup exynos_gsc_reserve
- */
-void exynos_gsc_release
-    (void *handle);
-
-
 /*
 *api for setting the GSC config.
 It configures the GSC for given config

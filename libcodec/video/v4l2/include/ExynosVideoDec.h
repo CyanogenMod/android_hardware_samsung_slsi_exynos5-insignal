@@ -21,8 +21,8 @@
 /* Configurable */
 #define VIDEO_DECODER_NAME              "s5p-mfc-dec"
 #define VIDEO_DECODER_INBUF_SIZE        (1920 * 1080 * 3 / 2)
-#define VIDEO_DECODER_INBUF_PLANES      1
-#define VIDEO_DECODER_OUTBUF_PLANES     2
+#define VIDEO_DECODER_DEFAULT_INBUF_PLANES  1
+#define VIDEO_DECODER_DEFAULT_OUTBUF_PLANES 2
 #define VIDEO_DECODER_POLL_TIMEOUT      25
 
 #define OPERATE_BIT(x, mask, shift)     ((x & (mask << shift)) >> shift)
@@ -38,7 +38,9 @@ typedef struct _ExynosVideoDecContext {
     ExynosVideoGeometry  inbufGeometry;
     ExynosVideoGeometry  outbufGeometry;
     int                  nInbufs;
+    int                  nInbufPlanes;
     int                  nOutbufs;
+    int                  nOutbufPlanes;
     ExynosVideoBoolType  bStreamonInbuf;
     ExynosVideoBoolType  bStreamonOutbuf;
     void                *pPrivate;

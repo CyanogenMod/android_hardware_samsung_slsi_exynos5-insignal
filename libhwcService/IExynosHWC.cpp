@@ -40,8 +40,10 @@ enum {
     SET_PROTECTION_MODE,
     SET_EXTERNAL_DISP_LAY_NUM,
     SET_FORCE_GPU,
-    SET_VIDEO_ROTATION,
-    GET_VIDEO_ROTATION,
+    SET_EXT_UI_TRANSFORM,
+    GET_EXT_UI_TRANSFORM,
+    SET_WFD_OUTPUT_TRANSFORM,
+    GET_WFD_OUTPUT_TRANSFORM,
     SET_HDMI_CABLE_STATUS,
     SET_HDMI_MODE,
     SET_HDMI_RESOLUTION,
@@ -195,21 +197,40 @@ public:
         return result;
     }
 
-    virtual int setVideoRotation(unsigned int rotation_degree)
+    virtual int setExternalUITransform(unsigned int transform)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
-        data.writeInt32(rotation_degree);
-        int result = remote()->transact(SET_VIDEO_ROTATION, data, &reply);
+        data.writeInt32(transform);
+        int result = remote()->transact(SET_EXT_UI_TRANSFORM, data, &reply);
         result = reply.readInt32();
         return result;
     }
 
-    virtual int getVideoRotation(void)
+    virtual int getExternalUITransform(void)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
-        int result = remote()->transact(GET_VIDEO_ROTATION, data, &reply);
+        int result = remote()->transact(GET_EXT_UI_TRANSFORM, data, &reply);
+        result = reply.readInt32();
+        return result;
+    }
+
+    virtual int setWFDOutputTransform(unsigned int transform)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
+        data.writeInt32(transform);
+        int result = remote()->transact(SET_WFD_OUTPUT_TRANSFORM, data, &reply);
+        result = reply.readInt32();
+        return result;
+    }
+
+    virtual int getWFDOutputTransform(void)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IExynosHWCService::getInterfaceDescriptor());
+        int result = remote()->transact(GET_WFD_OUTPUT_TRANSFORM, data, &reply);
         result = reply.readInt32();
         return result;
     }
@@ -427,17 +448,30 @@ status_t BnExynosHWCService::onTransact(
             reply->writeInt32(res);
             return NO_ERROR;
         } break;
-        case SET_VIDEO_ROTATION: {
+        case SET_EXT_UI_TRANSFORM: {
             CHECK_INTERFACE(IExynosHWCService, data, reply);
-            int rotation_degree = data.readInt32();
-            int res = setVideoRotation(rotation_degree);
+            int transform = data.readInt32();
+            int res = setExternalUITransform(transform);
             reply->writeInt32(res);
             return NO_ERROR;
         } break;
-        case GET_VIDEO_ROTATION: {
+        case GET_EXT_UI_TRANSFORM: {
             CHECK_INTERFACE(IExynosHWCService, data, reply);
-            int rotation_degree = getVideoRotation();
-            reply->writeInt32(rotation_degree);
+            int transform = getExternalUITransform();
+            reply->writeInt32(transform);
+            return NO_ERROR;
+        } break;
+        case SET_WFD_OUTPUT_TRANSFORM: {
+            CHECK_INTERFACE(IExynosHWCService, data, reply);
+            int transform = data.readInt32();
+            int res = setWFDOutputTransform(transform);
+            reply->writeInt32(res);
+            return NO_ERROR;
+        } break;
+        case GET_WFD_OUTPUT_TRANSFORM: {
+            CHECK_INTERFACE(IExynosHWCService, data, reply);
+            int transform = getWFDOutputTransform();
+            reply->writeInt32(transform);
             return NO_ERROR;
         } break;
         case SET_HDMI_RESOLUTION: {

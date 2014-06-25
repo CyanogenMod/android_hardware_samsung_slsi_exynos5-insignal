@@ -240,6 +240,15 @@ extern "C" g2ddrmResult_t G2DDRM_Terminate(void)
 
 	LOG_I("G2DDRM_Terminate(): secure G2D driver termination");
 	do {
+		LOG_I("Check TCI buffer");
+
+		tci = ctx.tci_msg;
+		if (NULL == tci) {
+			LOG_E("TCI has not been set up properly - exiting");
+			ret = G2DDRM_ERROR_EXIT_FAILED;
+			close(g_fd_secmem);
+			break;
+		}
 		LOG_I("Prepare command message in TCI");
 		tci->cmd.id = CMD_G2DDRM_TERMINATE;
 

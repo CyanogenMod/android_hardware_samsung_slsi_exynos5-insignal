@@ -10,7 +10,8 @@ LOCAL_SRC_FILES := \
 	csc_tiled_to_linear_uv_neon.s \
 	csc_tiled_to_linear_uv_deinterleave_neon.s \
 	csc_interleave_memcpy_neon.s \
-	csc_ARGB8888_to_YUV420SP_NEON.s
+	csc_ARGB8888_to_YUV420SP_NEON.s \
+	csc_ARGB8888_to_ABGR8888.s
 
 LOCAL_C_INCLUDES := \
 	$(TOP)/hardware/samsung_slsi/openmax/include/khronos \

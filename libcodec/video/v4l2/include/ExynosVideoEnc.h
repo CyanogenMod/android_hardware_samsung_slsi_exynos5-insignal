@@ -20,8 +20,8 @@
 
 /* Configurable */
 #define VIDEO_ENCODER_NAME              "s5p-mfc-enc"
-#define VIDEO_ENCODER_INBUF_PLANES      2
-#define VIDEO_ENCODER_OUTBUF_PLANES     1
+#define VIDEO_ENCODER_DEFAULT_INBUF_PLANES  2
+#define VIDEO_ENCODER_DEFAULT_OUTBUF_PLANES 1
 #define VIDEO_ENCODER_POLL_TIMEOUT      25
 
 typedef struct _ExynosVideoEncContext {
@@ -35,7 +35,9 @@ typedef struct _ExynosVideoEncContext {
     ExynosVideoGeometry  inbufGeometry;
     ExynosVideoGeometry  outbufGeometry;
     int                  nInbufs;
+    int                  nInbufPlanes;
     int                  nOutbufs;
+    int                  nOutbufPlanes;
     ExynosVideoBoolType  bStreamonInbuf;
     ExynosVideoBoolType  bStreamonOutbuf;
     void                *pPrivate;

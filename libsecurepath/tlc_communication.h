@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+
 #ifndef TLC_COMMUNICATION_H_
 #define TLC_COMMUNICATION_H_
 
@@ -31,5 +32,6 @@ typedef struct {
 mcResult_t tlc_open(mc_comm_ctx *comm_ctx);
 mcResult_t tlc_close(mc_comm_ctx *comm_ctx);
 mcResult_t tlc_communicate(mc_comm_ctx *comm_ctx);
+
 
 #endif

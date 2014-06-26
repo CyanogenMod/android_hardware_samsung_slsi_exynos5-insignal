@@ -658,6 +658,7 @@ static ExynosVideoErrorType MFC_Encoder_Set_EncParam (
         break;
     }
 
+#ifdef USE_VP8ENC_SUPPORT
     case VIDEO_CODING_VP8:
     {
         ExynosVideoEncVp8Param *pVp8Param = &pEncParam->codecParam.vp8;
@@ -740,6 +741,7 @@ static ExynosVideoErrorType MFC_Encoder_Set_EncParam (
         ext_ctrls.count = VP8_CTRL_NUM;
         break;
     }
+#endif
     default:
         ALOGE("[%s] Undefined codec type",__func__);
         ret = VIDEO_ERROR_BADPARAM;

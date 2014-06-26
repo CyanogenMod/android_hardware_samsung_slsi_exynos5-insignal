@@ -2,6 +2,10 @@ LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
 
+ifeq ($(BOARD_USE_DUALDPB_MODE), true)
+LOCAL_CFLAGS += -DUSE_DUALDPB_MODE
+endif
+
 LOCAL_SRC_FILES := \
 	dec/ExynosVideoDecoder.c \
 	enc/ExynosVideoEncoder.c

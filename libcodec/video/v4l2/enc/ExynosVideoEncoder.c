@@ -2670,9 +2670,11 @@ static int MFC_Encoder_Get_SpareSize_Inbuf(void *pHandle)
 
     version = getMFCVersion(pHandle);
     switch ((ExynosVideoMFCVersion)version) {
+#ifdef USE_DUALDPB_MODE
     case MFC_72:
         exynos_v4l2_g_ctrl(pCtx->hEnc, V4L2_CID_MPEG_MFC_GET_EXTRA_BUFFER_SIZE, &spareSize);
         break;
+#endif
     default:
         spareSize = 0;
         break;

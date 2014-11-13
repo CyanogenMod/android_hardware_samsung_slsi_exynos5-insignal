@@ -23,6 +23,7 @@ LOCAL_MODULE := keystore.exynos5
 LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR_SHARED_LIBRARIES)/hw
 LOCAL_SRC_FILES := keymaster_mobicore.cpp tlcTeeKeymaster_if.c
 LOCAL_C_INCLUDES := \
+	libnativehelper/include \
 	system/security/keystore \
 	system/security/keystore/include/keystore \
 	external/openssl/include \

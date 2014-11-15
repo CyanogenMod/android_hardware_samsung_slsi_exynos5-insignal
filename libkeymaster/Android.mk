@@ -26,6 +26,7 @@ LOCAL_C_INCLUDES := \
 	system/security/keystore \
 	system/security/keystore/include/keystore \
 	external/openssl/include \
+	libnativehelper/include \
 	$(MOBICORE_PATH)/daemon/ClientLib/public \
 	$(MOBICORE_PATH)/common/MobiCore/inc/
 LOCAL_C_FLAGS = -fvisibility=hidden -Wall -Werror

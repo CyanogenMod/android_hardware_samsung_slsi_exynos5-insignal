@@ -457,34 +457,34 @@ static bool exynos5_requires_gscaler(hwc_layer_1_t &layer, int format)
             || is_transformed(layer) || !is_x_aligned(layer, format);
 }
 
-bool hdmi_is_preset_supported(struct exynos5_hwc_composer_device_1_t *dev, int preset)
+bool hdmi_is_dv_timings_supported(struct exynos5_hwc_composer_device_1_t *dev, uint32_t type)
 {
-    struct v4l2_dv_enum_preset enum_preset;
+    struct v4l2_enum_dv_timings enum_dv_timings;
     bool found = false;
     int index = 0;
     int ret;
 
     while (true) {
-        enum_preset.index = index++;
-        ret = ioctl(dev->hdmi_layers[0].fd, VIDIOC_ENUM_DV_PRESETS, &enum_preset);
+        enum_dv_timings.index = index++;
 
+        ret = ioctl(dev->hdmi_layers[0].fd, VIDIOC_ENUM_DV_TIMINGS, &enum_dv_timings);
         if (ret < 0) {
             if (errno == EINVAL)
                 break;
-            ALOGE("%s: enum_dv_presets error, %d", __func__, errno);
+            ALOGE("%s: v4l2_enum_dv_timings error, %d", __func__, errno);
             return -1;
         }
 
-        ALOGV("%s: %d preset=%02d width=%d height=%d name=%s",
-                __func__, enum_preset.index, enum_preset.preset,
-                enum_preset.width, enum_preset.height, enum_preset.name);
+        ALOGV("%s: %d type=%02d width=%d height=%d",
+              __func__, enum_dv_timings.index, enum_dv_timings.timings.type,
+              enum_dv_timings.timings.bt.width, enum_dv_timings.timings.bt.height);
 
-        if (preset == enum_preset.preset) {
-            dev->hdmi_w  = enum_preset.width;
-            dev->hdmi_h  = enum_preset.height;
+        if (enum_dv_timings.timings.type == type) {
+            dev->hdmi_w  = enum_dv_timings.timings.bt.width;
+            dev->hdmi_h  = enum_dv_timings.timings.bt.height;
             found = true;
 #if defined(HWC_SERVICES)
-            dev->mHdmiCurrentPreset = preset;
+            dev->mHdmiCurrentDVTimings = type;
 #endif
         }
     }
@@ -574,21 +574,25 @@ void wfd_get_config(struct exynos5_hwc_composer_device_1_t *dev)
 
 int hdmi_get_config(struct exynos5_hwc_composer_device_1_t *dev)
 {
-    struct v4l2_dv_preset preset;
-    struct v4l2_dv_enum_preset enum_preset;
-    int index = 0;
-    bool found = false;
-    int ret;
+    struct v4l2_dv_timings dv_timings;
+    bool is_supported;
+    int rc;
 
     if (!dev->hdmi_hpd)
         return -1;
 
-    if (ioctl(dev->hdmi_layers[0].fd, VIDIOC_G_DV_PRESET, &preset) < 0) {
-        ALOGE("%s: g_dv_preset error, %d", __func__, errno);
+    rc = ioctl(dev->hdmi_layers[0].fd, VIDIOC_G_DV_TIMINGS, &dv_timings);
+    if (rc < 0) {
+        ALOGE("%s: VIDIOC_G_DV_TIMINGS error, %d", __func__, errno);
         return -1;
     }
 
-    return hdmi_is_preset_supported(dev, preset.preset) ? 0 : -1;
+    is_supported = hdmi_is_dv_timings_supported(dev, dv_timings.type);
+    if (!is_supported) {
+        return -1;
+    }
+
+    return 0;
 }
 
 static enum s3c_fb_blending exynos5_blending_to_s3c_blending(int32_t blending)
@@ -1156,7 +1160,7 @@ static int hdmi_output(struct exynos5_hwc_composer_device_1_t *dev,
     hl.current_buf = (hl.current_buf + 1) % NUM_HDMI_BUFFERS;
 
     if (!hl.streaming) {
-        if (exynos_v4l2_streamon(hl.fd, buffer.type) < 0) {
+        if (exynos_v4l2_streamon(hl.fd, (enum v4l2_buf_type)buffer.type) < 0) {
             ALOGE("%s: layer%d: streamon failed %d", __func__, hl.id, errno);
             ret = -1;
             goto err;
@@ -1222,23 +1226,25 @@ static void hdmi_skip_static_layers(exynos5_hwc_composer_device_1_t *pdev,
 #endif
 
 #if defined(HWC_SERVICES)
-void hdmi_set_preset(exynos5_hwc_composer_device_1_t *pdev, int preset)
+void hdmi_set_dv_timings(exynos5_hwc_composer_device_1_t *pdev, uint32_t type)
 {
     pdev->mHdmiResolutionChanged = false;
     pdev->mHdmiResolutionHandled = false;
     pdev->hdmi_hpd = false;
-    v4l2_dv_preset v_preset;
-    v_preset.preset = preset;
+    struct v4l2_dv_timings dv_timings = {
+        .type = type;
+    };
+
     hdmi_disable(pdev);
-    if (ioctl(pdev->hdmi_layers[0].fd, VIDIOC_S_DV_PRESET, &v_preset) != -1) {
+    if (ioctl(pdev->hdmi_layers[0].fd, VIDIOC_S_DV_TIMINGS, &dv_timings) != -1) {
         if (pdev->procs)
             pdev->procs->hotplug(pdev->procs, HWC_DISPLAY_EXTERNAL, false);
     }
 }
 
-int hdmi_3d_to_2d(int preset)
+int hdmi_3d_to_2d(int type)
 {
-    switch (preset) {
+    switch (type) {
     case V4L2_DV_720P60_FP:
     case V4L2_DV_720P60_SB_HALF:
     case V4L2_DV_720P60_TB:
@@ -1259,9 +1265,9 @@ int hdmi_3d_to_2d(int preset)
     }
 }
 
-int hdmi_S3D_format(int preset)
+int hdmi_S3D_format(int type)
 {
-    switch (preset) {
+    switch (type) {
     case V4L2_DV_720P60_SB_HALF:
     case V4L2_DV_720P50_SB_HALF:
     case V4L2_DV_1080P60_SB_HALF:
@@ -3148,7 +3154,7 @@ static int exynos5_post_fimd(exynos5_hwc_composer_device_1_t *pdev,
                         WIDTH(layer.displayFrame), HEIGHT(layer.displayFrame) };
 #if defined(S3D_SUPPORT)
                 if (pdev->mS3DMode == S3D_MODE_READY || pdev->mS3DMode == S3D_MODE_RUNNING) {
-                    int S3DFormat = hdmi_S3D_format(pdev->mHdmiPreset);
+                    int S3DFormat = hdmi_S3D_format(pdev->mHdmiDVTimings);
                     if (S3DFormat == S3D_SBS)
                         gsc_idx = FIMD_GSC_SBS_IDX;
                     else if (S3DFormat == S3D_TB)
@@ -3402,17 +3408,17 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
 
             int gsc_idx = HDMI_GSC_IDX;
 #if defined(S3D_SUPPORT)
-            bool changedPreset = false;
+            bool changedTimings = false;
             if (pdev->mS3DMode != S3D_MODE_DISABLED && pdev->mHdmiResolutionChanged) {
-                if (hdmi_is_preset_supported(pdev, pdev->mHdmiPreset)) {
+                if (hdmi_is_dv_timings_supported(pdev, pdev->mHdmiDVTimings)) {
                     pdev->mS3DMode = S3D_MODE_RUNNING;
-                    hdmi_set_preset(pdev, pdev->mHdmiPreset);
-                    changedPreset = true;
+                    hdmi_set_dv_timings(pdev, pdev->mHdmiDVTimings);
+                    changedTimings = true;
                 } else {
                     pdev->mS3DMode = S3D_MODE_RUNNING;
                     pdev->mHdmiResolutionChanged = false;
                     pdev->mHdmiResolutionHandled = true;
-                    int S3DFormat = hdmi_S3D_format(pdev->mHdmiPreset);
+                    int S3DFormat = hdmi_S3D_format(pdev->mHdmiDVTimings);
                     if (S3DFormat == S3D_SBS)
                         gsc_idx = HDMI_GSC_SBS_IDX;
                     else if (S3DFormat == S3D_TB)
@@ -3498,16 +3504,16 @@ static int exynos5_set_hdmi(exynos5_hwc_composer_device_1_t *pdev,
         exynos5_cleanup_gsc_m2m(pdev, HDMI_GSC_IDX);
 #if defined(S3D_SUPPORT)
         if (pdev->mS3DMode == S3D_MODE_RUNNING && contents->numHwLayers > 1) {
-            int preset = hdmi_3d_to_2d(pdev->mHdmiCurrentPreset);
-            if (hdmi_is_preset_supported(pdev, preset)) {
-                hdmi_set_preset(pdev, preset);
+            int timings_type = hdmi_3d_to_2d(pdev->mHdmiCurrentDVTimings);
+            if (hdmi_is_dv_timings_supported(pdev, timings_type)) {
+                hdmi_set_dv_timings(pdev, timings_type);
                 pdev->mS3DMode = S3D_MODE_STOPPING;
-                pdev->mHdmiPreset = preset;
+                pdev->mHdmiDVTimings = timings_type;
                 if (pdev->procs)
                     pdev->procs->invalidate(pdev->procs);
             } else {
                 pdev->mS3DMode = S3D_MODE_DISABLED;
-                pdev->mHdmiPreset = pdev->mHdmiCurrentPreset;
+                pdev->mHdmiDVTimings = pdev->mHdmiCurrentDVTimings;
             }
         }
 #endif
@@ -3666,11 +3672,11 @@ static int exynos5_set(struct hwc_composer_device_1 *dev,
     }
     if (pdev->hdmi_hpd && pdev->mHdmiResolutionChanged) {
 #if defined(S3D_SUPPORT)
-        if (pdev->mS3DMode == S3D_MODE_DISABLED && hdmi_is_preset_supported(pdev, pdev->mHdmiPreset))
+        if (pdev->mS3DMode == S3D_MODE_DISABLED && hdmi_is_dv_timings_supported(pdev, pdev->mHdmiDVTimings))
 #else
-        if (hdmi_is_preset_supported(pdev, pdev->mHdmiPreset))
+        if (hdmi_is_dv_timings_supported(pdev, pdev->mHdmiDVTimings))
 #endif
-            hdmi_set_preset(pdev, pdev->mHdmiPreset);
+            hdmi_set_dv_timings(pdev, pdev->mHdmiDVTimings);
     }
 #if defined(S3D_SUPPORT)
     if (pdev->mS3DMode == S3D_MODE_STOPPING)
@@ -4468,8 +4474,8 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
 #if defined(S3D_SUPPORT)
     dev->mS3DMode = S3D_MODE_DISABLED;
 #endif
-    dev->mHdmiPreset = HDMI_PRESET_DEFAULT;
-    dev->mHdmiCurrentPreset = HDMI_PRESET_DEFAULT;
+    dev->mHdmiDVTimings = HDMI_TIMINGS_DEFAULT;
+    dev->mHdmiCurrentDVTimings = HDMI_TIMINGS_DEFAULT;
     dev->mUseSubtitles = false;
 #endif
 

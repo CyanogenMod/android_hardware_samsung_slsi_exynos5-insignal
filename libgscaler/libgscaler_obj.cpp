@@ -1540,7 +1540,7 @@ int CGscaler::m_gsc_out_run(void *handle, exynos_gsc_img *src_img)
 
     if (gsc->src_info.stream_on == false) {
         if (exynos_v4l2_streamon(gsc->mdev.gsc_vd_entity->fd,
-            buf.type) < 0) {
+            (enum v4l2_buf_type)buf.type) < 0) {
             ALOGE("%s::stream on failed", __func__);
             return -1;
         }

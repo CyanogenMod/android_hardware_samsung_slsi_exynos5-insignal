@@ -490,7 +490,11 @@ static ExynosVideoErrorType MFC_Encoder_Set_EncParam (
         ext_ctrl[47].id =  V4L2_CID_MPEG_VIDEO_H264_SEI_FP_CURRENT_FRAME_0;
         ext_ctrl[47].value = 0;
         ext_ctrl[48].id =  V4L2_CID_MPEG_VIDEO_H264_SEI_FP_ARRANGEMENT_TYPE;
+#ifdef SOC_EXYNOS5430
+        ext_ctrl[48].value = V4L2_MPEG_VIDEO_H264_SEI_FP_ARRANGEMENT_TYPE_SIDE_BY_SIDE;
+#else
         ext_ctrl[48].value = V4L2_MPEG_VIDEO_H264_SEI_FP_TYPE_SIDE_BY_SIDE;
+#endif
 
         /* FMO is not supported yet */
         ext_ctrl[49].id =  V4L2_CID_MPEG_VIDEO_H264_FMO;

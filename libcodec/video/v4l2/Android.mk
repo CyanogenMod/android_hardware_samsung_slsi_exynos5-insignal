@@ -10,6 +10,11 @@ ifeq ($(BOARD_USE_VP8ENC_SUPPORT), true)
 LOCAL_CFLAGS += -DUSE_VP8ENC_SUPPORT
 endif
 
+ifeq ($(TARGET_SOC), exynos5430)
+	LOCAL_CFLAGS += -DSOC_EXYNOS5430
+endif
+
+
 LOCAL_SRC_FILES := \
 	dec/ExynosVideoDecoder.c \
 	enc/ExynosVideoEncoder.c

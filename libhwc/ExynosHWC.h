@@ -301,7 +301,7 @@ struct exynos5_hwc_composer_device_1_t {
     uint64_t LastModeSwitchTimeStamp;
     int invalidateStatus;
     int needInvalidate;
-    int totPixels;
+    uint32_t totPixels;
     int setCallCnt;
     pthread_t   vsync_stat_thread;
     int vsyn_event_cnt;

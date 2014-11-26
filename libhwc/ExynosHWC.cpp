@@ -25,6 +25,7 @@ class ExynosHWCService;
 #endif
 
 #include "ExynosHWC.h"
+#include <sync/sync.h>
 
 static void exynos5_cleanup_gsc_m2m(exynos5_hwc_composer_device_1_t *pdev,
         size_t gsc_idx);

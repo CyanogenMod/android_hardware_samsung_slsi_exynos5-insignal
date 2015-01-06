@@ -1628,12 +1628,15 @@ static ExynosVideoErrorType MFC_Decoder_Enqueue_Inbuf(
             buf.m.planes[i].bytesused = dataSize[i];
     }
 
-#ifndef SOC_EXYNOS5430
     if ((((OMX_BUFFERHEADERTYPE *)pPrivate)->nFlags & OMX_BUFFERFLAG_EOS) == OMX_BUFFERFLAG_EOS) {
+#ifdef SOC_EXYNOS5430
+        buf.reserved2 = LAST_FRAME;
+        ALOGD("%s: OMX_BUFFERFLAG_EOS => LAST_FRAME: 0x%x", __func__, buf.reserved2);
+#else
         buf.input = LAST_FRAME;
         ALOGD("%s: OMX_BUFFERFLAG_EOS => LAST_FRAME: 0x%x", __func__, buf.input);
-    }
 #endif
+    }
 
     signed long long sec  = (((OMX_BUFFERHEADERTYPE *)pPrivate)->nTimeStamp / 1E6);
     signed long long usec = (((OMX_BUFFERHEADERTYPE *)pPrivate)->nTimeStamp) - (sec * 1E6);
@@ -2147,12 +2150,15 @@ static ExynosVideoErrorType MFC_Decoder_ExtensionEnqueue_Inbuf(
         pCtx->pInbuf[buf.index].planes[i].allocSize = allocLen[i];
     }
 
-#ifndef SOC_EXYNOS5430
     if ((((OMX_BUFFERHEADERTYPE *)pPrivate)->nFlags & OMX_BUFFERFLAG_EOS) == OMX_BUFFERFLAG_EOS) {
+#ifdef SOC_EXYNOS5430
+        buf.reserved2 = LAST_FRAME;
+        ALOGD("%s: OMX_BUFFERFLAG_EOS => LAST_FRAME: 0x%x", __func__, buf.reserved2);
+#else
         buf.input = LAST_FRAME;
         ALOGD("%s: OMX_BUFFERFLAG_EOS => LAST_FRAME: 0x%x", __func__, buf.input);
-    }
 #endif
+    }
 
     signed long long sec  = (((OMX_BUFFERHEADERTYPE *)pPrivate)->nTimeStamp / 1E6);
     signed long long usec = (((OMX_BUFFERHEADERTYPE *)pPrivate)->nTimeStamp) - (sec * 1E6);
@@ -2183,6 +2189,9 @@ static ExynosVideoErrorType MFC_Decoder_ExtensionDequeue_Inbuf(
     ExynosVideoErrorType   ret  = VIDEO_ERROR_NONE;
 
     struct v4l2_buffer buf;
+#ifdef SOC_EXYNOS5430
+    struct v4l2_plane  planes[VIDEO_BUFFER_MAX_PLANES];
+#endif
 
     if (pCtx == NULL) {
         ALOGE("%s: Video context info must be supplied", __func__);
@@ -2197,6 +2206,10 @@ static ExynosVideoErrorType MFC_Decoder_ExtensionDequeue_Inbuf(
 
     memset(&buf, 0, sizeof(buf));
     buf.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
+#ifdef SOC_EXYNOS5430
+    buf.m.planes = planes;
+    buf.length = pCtx->nInbufPlanes;
+#endif
     buf.memory = pCtx->nMemoryType;
     if (exynos_v4l2_dqbuf(pCtx->hDec, &buf) != 0) {
         ret = VIDEO_ERROR_APIFAIL;

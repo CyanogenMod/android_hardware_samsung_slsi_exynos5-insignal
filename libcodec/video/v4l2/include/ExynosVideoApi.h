@@ -21,7 +21,11 @@
 #include "exynos_v4l2.h"
 
 /* Fixed */
+#ifdef SOC_EXYNOS5430
+#define VIDEO_BUFFER_MAX_PLANES 8
+#else
 #define VIDEO_BUFFER_MAX_PLANES 3
+#endif
 #define LAST_FRAME     0x80000000
 
 typedef enum _ExynosVideoBoolType {

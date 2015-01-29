@@ -503,6 +503,7 @@ bool hdmi_is_preset_supported(struct exynos5_hwc_composer_device_1_t *dev, int p
 #if defined(HWC_SERVICES)
             dev->mHdmiCurrentPreset = preset;
 #endif
+            break; /* We found the preset, leave loop */
         }
     }
 

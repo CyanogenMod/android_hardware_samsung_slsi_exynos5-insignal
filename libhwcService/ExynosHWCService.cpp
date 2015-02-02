@@ -192,13 +192,13 @@ int ExynosHWCService::getWFDOutputTransform(void)
 void ExynosHWCService::setHdmiResolution(int resolution, int s3dMode)
 {
     if (resolution == 0)
-        resolution = mHWCCtx->mHdmiCurrentPreset;
+        resolution = mHWCCtx->mHdmiCurrentDVTimings;
 #if defined(S3D_SUPPORT)
     if (s3dMode == S3D_NONE) {
 #endif
-        if (mHWCCtx->mHdmiCurrentPreset == resolution)
+        if (mHWCCtx->mHdmiCurrentDVTimings == resolution)
             return;
-        mHWCCtx->mHdmiPreset = resolution;
+        mHWCCtx->mHdmiDVTimings = resolution;
         mHWCCtx->mHdmiResolutionChanged = true;
         mHWCCtx->procs->invalidate(mHWCCtx->procs);
         return;
@@ -242,7 +242,7 @@ void ExynosHWCService::setHdmiResolution(int resolution, int s3dMode)
     default:
         return;
     }
-    mHWCCtx->mHdmiPreset = resolution;
+    mHWCCtx->mHdmiDVTimings = resolution;
     mHWCCtx->mHdmiResolutionChanged = true;
     mHWCCtx->mS3DMode = S3D_MODE_READY;
     mHWCCtx->procs->invalidate(mHWCCtx->procs);
@@ -332,7 +332,7 @@ int ExynosHWCService::getPresentationMode()
 
 void ExynosHWCService::getHdmiResolution(uint32_t *width, uint32_t *height)
 {
-    switch (mHWCCtx->mHdmiCurrentPreset) {
+    switch (mHWCCtx->mHdmiCurrentDVTimings) {
     case V4L2_DV_480P59_94:
     case V4L2_DV_480P60:
         *width = 640;

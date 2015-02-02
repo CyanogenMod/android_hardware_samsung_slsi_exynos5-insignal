@@ -537,12 +537,12 @@ bool hdmi_is_dv_timings_supported(struct exynos5_hwc_composer_device_1_t *dev, u
                 __func__, enum_preset.index, enum_preset.preset,
                 enum_preset.width, enum_preset.height, enum_preset.name);
 
-        if (preset == enum_preset.preset) {
+        if (type == enum_preset.preset) {
             dev->hdmi_w  = enum_preset.width;
             dev->hdmi_h  = enum_preset.height;
             found = true;
 #if defined(HWC_SERVICES)
-            dev->mHdmiCurrentPreset = preset;
+            dev->mHdmiCurrentDVTimings = type;
 #endif
             break; /* We found the preset, leave loop */
         }
@@ -1336,12 +1336,13 @@ void hdmi_set_dv_timings(exynos5_hwc_composer_device_1_t *pdev, uint32_t type)
     pdev->mHdmiResolutionHandled = false;
     pdev->hdmi_hpd = false;
     v4l2_dv_preset v_preset;
-    v_preset.preset = preset;
+    v_preset.preset = type;
     hdmi_disable(pdev);
     if (ioctl(pdev->hdmi_layers[0].fd, VIDIOC_S_DV_PRESET, &v_preset) != -1) {
         if (pdev->procs)
             pdev->procs->hotplug(pdev->procs, HWC_DISPLAY_EXTERNAL, false);
     }
+}
 #endif /* VIDIOC_ENUM_DV_TIMINGS */
 
 int hdmi_3d_to_2d(int type)

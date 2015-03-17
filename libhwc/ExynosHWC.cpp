@@ -498,7 +498,7 @@ bool hdmi_is_dv_timings_supported(struct exynos5_hwc_composer_device_1_t *dev, u
     return found;
 }
 #else /* VIDIOC_ENUM_DV_TIMINGS */
-bool hdmi_is_dv_timings_supported(struct exynos5_hwc_composer_device_1_t *dev, uint32_t type)
+bool hdmi_is_dv_timings_supported(struct exynos5_hwc_composer_device_1_t *dev, uint32_t preset)
 {
     struct v4l2_dv_enum_preset enum_preset;
     bool found = false;

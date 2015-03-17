@@ -54,6 +54,7 @@
 #include "ExynosHWCModule.h"
 #include "ExynosRect.h"
 #include <linux/videodev2.h>
+#include "linux/s3c-fb.h"
 #ifdef USE_FB_PHY_LINEAR
 const size_t NUM_HW_WIN_FB_PHY = 2;
 #undef DUAL_VIDEO_OVERLAY_SUPPORT

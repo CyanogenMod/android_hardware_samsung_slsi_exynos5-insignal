@@ -484,7 +484,7 @@ bool hdmi_is_dv_timings_supported(struct exynos5_hwc_composer_device_1_t *dev, u
 
     while (true) {
         enum_dv_timings = (struct v4l2_enum_dv_timings) {
-            .index = index++,
+            index: index++,
         };
 
         ret = ioctl(dev->hdmi_layers[0].fd,
@@ -636,7 +636,7 @@ void wfd_get_config(struct exynos5_hwc_composer_device_1_t *dev)
 int hdmi_get_config(struct exynos5_hwc_composer_device_1_t *dev)
 {
     struct v4l2_dv_timings dv_timings = {
-        .type = 0,
+        type: 0,
     };
     bool is_supported;
     int rc;
@@ -1317,7 +1317,7 @@ void hdmi_set_dv_timings(exynos5_hwc_composer_device_1_t *pdev, uint32_t type)
     pdev->mHdmiResolutionHandled = false;
     pdev->hdmi_hpd = false;
     struct v4l2_dv_timings dv_timings = {
-        .type = type,
+        type: type,
     };
     int rc;
 

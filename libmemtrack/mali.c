@@ -26,6 +26,10 @@
 #define ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
 #define min(x, y) ((x) < (y) ? (x) : (y))
 
+#ifndef PAGE_SIZE
+#define PAGE_SIZE 0x1000 /* Assume 4k pages on ARM */
+#endif
+
 struct memtrack_record record_templates[] = {
     {
         .flags = MEMTRACK_FLAG_SMAPS_ACCOUNTED |

@@ -22,9 +22,11 @@ exynos5_dirs := \
 	libcodec \
 	libion_exynos \
 	libgscaler \
+	libmemtrack \
 	libswconverter \
 	libhwcService \
 	libkeymaster \
+	librotator \
 	libsecurepath
 
 ifeq ($(BOARD_TV_PRIMARY), true)

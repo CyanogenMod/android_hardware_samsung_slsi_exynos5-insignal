@@ -25,6 +25,7 @@ exynos5_dirs := \
 	libswconverter \
 	libhwcService \
 	libkeymaster \
+	librotator \
 	libsecurepath
 
 ifeq ($(BOARD_TV_PRIMARY), true)

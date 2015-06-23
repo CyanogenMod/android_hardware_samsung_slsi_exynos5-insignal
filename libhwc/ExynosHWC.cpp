@@ -4422,6 +4422,52 @@ static int exynos5_getDisplayAttributes(struct hwc_composer_device_1 *dev,
 
 static int exynos5_close(hw_device_t* device);
 
+static void get_screen_res(const char *fbname, int32_t *xres, int32_t *yres,
+                           int32_t *refresh)
+{
+    char *path;
+    int fd;
+    char buf[128];
+    int ret;
+    unsigned int _x, _y, _r;
+
+    asprintf(&path, "/sys/class/graphics/%s/modes", fbname);
+    if (!path)
+        goto err_asprintf;
+    fd = open(path, O_RDONLY);
+    if (fd < 0)
+        goto err_open;
+    ret = read(fd, buf, sizeof(buf));
+    if (ret <= 0)
+        goto err_read;
+    buf[sizeof(buf)-1] = '\0';
+
+    ret = sscanf(buf, "U:%ux%up-%u", &_x, &_y, &_r);
+    if (ret != 3)
+        goto err_sscanf;
+
+    ALOGI("Using %ux%u %uHz resolution for '%s' from modes list\n",
+          _x, _y, _r, fbname);
+
+    *xres = (int32_t)_x;
+    *yres = (int32_t)_y;
+    *refresh = (int32_t)_r;
+
+    close(fd);
+    free(path);
+    return;
+
+err_sscanf:
+err_read:
+    close(fd);
+err_open:
+    free(path);
+err_asprintf:
+    *xres = 2560;
+    *yres = 1600;
+    *refresh = 60;
+}
+
 static int exynos5_open(const struct hw_module_t *module, const char *name,
         struct hw_device_t **device)
 {
@@ -4482,22 +4528,14 @@ static int exynos5_open(const struct hw_module_t *module, const char *name,
     lcd_xres = info.reserved[0];
     lcd_yres = info.reserved[1];
 
-    refreshRate = 1000000000000LLU /
-        (
-         uint64_t( info.upper_margin + info.lower_margin + lcd_yres )
-         * ( info.left_margin  + info.right_margin + lcd_xres )
-         * info.pixclock
-        );
-
+    get_screen_res("fb0", &dev->xres, &dev->yres, &refreshRate);
     if (refreshRate == 0) {
         ALOGW("invalid refresh rate, assuming 60 Hz");
         refreshRate = 60;
     }
 
-    dev->xres = lcd_xres;
-    dev->yres = lcd_yres;
-    dev->xdpi = 1000 * (lcd_xres * 25.4f) / info.width;
-    dev->ydpi = 1000 * (lcd_yres * 25.4f) / info.height;
+    dev->xdpi = 1000 * (dev->xres * 25.4f) / info.width;
+    dev->ydpi = 1000 * (dev->yres * 25.4f) / info.height;
     dev->vsync_period  = 1000000000 / refreshRate;
 
     ALOGV("using\n"
